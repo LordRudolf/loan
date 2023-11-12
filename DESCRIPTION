@@ -1,12 +1,17 @@
 Package: loan
 Type: Package
-Title: What the Package Does (Title Case)
-Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
-License: What license is it under?
+Title: Comprehensive Loan Portfolio Analysis and Credit Risk Management
+Version: 0.1.0 
+Authors@R: c(
+    person("Rudolfs", "Kregers", email = "lordrudolf@inbox.lv", role = c("aut", "cre")))
+Maintainer: Rudolfs Kregers <lordrudolf@inbox.lv>
+Description: This package offers a comprehensive set of tools for loan portfolio analysis 
+    and credit risk management. It features highly automated functions for streamlined 
+    dataset handling, advanced analytics for assessing the value of client features, and 
+    robust methods for underwriting workflow analysis. The package facilitates the 
+    development of scorecards through integration with R base, caret, and tidymodels 
+    frameworks, catering to a wide range of use cases in credit risk assessment.
+License: GPL-3 | file LICENSE
 Encoding: UTF-8
 LazyData: true
 Imports: dplyr
