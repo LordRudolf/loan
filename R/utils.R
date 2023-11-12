@@ -136,7 +136,7 @@ detect_target <- function(target_var) {
 
     target <- target_var
     target[!is.na(target_var) & as.character(target_var) == target_good_name] <- 'GOOD'
-    target[!is.na(target_var) & as.character(target_var) != 'GOOD'] <- 'BAD'
+    target[!is.na(target_var) & as.character(target) != 'GOOD'] <- 'BAD'
   }
 
   ## TO DO: assign more classes
