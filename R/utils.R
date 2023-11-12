@@ -112,48 +112,43 @@ generate_attribute_list <- function(df) {
   return(attributes_df)
 }
 
-produce_contingency_table <- function(x, ...) {
-  UseMethod('produce_contingency_table')
-}
+detect_target <- function(target_var) {
+  tabl <- table(target_var, exclude = NA)
+  unique_classes <- length(tabl)
+  tabl_names <- names(tabl)
 
-produce_contingency_table.factor <- function(the_var, target, application_status = NULL, ...) {
+  possible_good <- stringr::str_detect(tolower(tabl_names),
+                         'good|paid')
+  possible_bad <- stringr::str_detect(tolower(tabl_names),
+                                       'bad|default')
 
-  cont_table <- table(the_var) %>% as.data.frame()
+  if(length(unique(na.omit(target_var))) == 2) {
+    if(sum(possible_good) == 2 | sum(possible_bad)) stop('Ambigious target class names')
+    if(sum(possible_good) == 1) {
+      target_good_name <- tabl_names[possible_good]
+    } else if(sum(possible_bad) == 1) {
+      target_good_name <- tabl_names[!possible_bad]
+    } else {
+      target_good_name <- names(tabl)[which.max(tabl)]
+      warning(paste0('Assigning the `GOOD` target class to the majority of target clases currently named as ',
+                     target_good_name))
+    }
 
-  cont_loan <- table(the_var, target) %>% as.data.frame.matrix()
-  colnames(cont_loan) <- paste0('count_', colnames(cont_loan))
-  cont_loan$issued_loans_total <- rowSums(cont_loan)
-  cont_loan$the_var <- rownames(cont_loan)
-
-  if(!is.null(application_status)) {
-    #TO DO: do not calculate issuance rate (and the the contingency table below) if the all applications have been approved
-    cont_app <- table(the_var, application_status) %>% as.data.frame.matrix()
-    colnames(cont_app) <- paste0('count_', colnames(cont_app))
-    cont_app$applications_total <- rowSums(cont_app)
-    cont_app$the_var <- rownames(cont_app)
-
-    cont_table <- merge(subset(cont_table, select = 1),  cont_app, by = 'the_var', all.x = TRUE, sort = FALSE)
-    cont_table <- merge(cont_table,  cont_loan, by = 'the_var', all.x = TRUE, sort = FALSE)
-  } else {
-    cont_table <- merge(subset(cont_table, select = 1),  cont_loan, by = 'the_var', all.x = TRUE, sort = FALSE)
+    target <- target_var
+    target[!is.na(target_var) & as.character(target_var) == target_good_name] <- 'GOOD'
+    target[!is.na(target_var) & as.character(target_var) != 'GOOD'] <- 'BAD'
   }
 
-  ## Make a new class so some get_[stats] functions could be used for multiple different classes
-  cont_table <- structure(
-    cont_table,
-    class = c('loan_cont_table', 'data.frame')
-  )
+  ## TO DO: assign more classes
 
-  return(cont_table)
+  return(target)
 }
 
-produce_contingency_table.character <- produce_contingency_table.factor
+detect_application_status <- function(application_status_var) {
+  #tabl <- table(application_status_var, exclude = NA)
 
+  application_status <- application_status_var
 
-produce_contingency_table.numeric <- function(the_var, target, application_status = NULL, ...) {
-  stop('how did we arrive here??')
-  ### remove this function
-
-  the_var_num <- discretize_values(the_var, breaks = 5)
-  produce_contingency_table(the_var = the_var_num, target = target, application_status = application_status, ...)
+  ## TO DO: all of this
+  return(application_status)
 }
