@@ -5,7 +5,7 @@
 #' (e.g., loan status, application created_at, client id, first payment due, etc.) and turns them into a new data frame object recognized by the other
 #' `loan` package functions for the automatic and easy data analysis.
 #'
-#' @param x A data frame or matrix of the credit loan/application portfolio data set where each row indicates individual loans or applications but the columns -
+#' @param df A data frame or matrix of the credit loan/application portfolio data set where each row indicates individual loans or applications but the columns -
 #' all the information related to the corresponding loan/application including, but not limited to, observations data (characteristics available before taking a loan issuance decision),
 #' client/application/loan id fields, created at or registered at time stamp fields, current days passed due, and more.
 #' @param client_id The column name that contains unique client identification number. Leave it NA if not available.
@@ -40,9 +40,9 @@
 #' @export
 #' @examples
 #' Lalallaaaa
-#' a <- 1:100
+#' a <- 1:100r find
 
-loan_df <- function(x,
+loan_df <- function(df,
                     client_id = NA,
                     application_id = NA,
                     loan_id = NA,
@@ -58,28 +58,28 @@ loan_df <- function(x,
 
   stopifnot(any(c('POSIXt', 'POSIXct', 'Date') %in% class(data_downloaded_at)))
 
-  x_names <- colnames(x)
+  x_names <- colnames(df)
   names_to_check <- c(client_id, application_id, loan_id, application_created_at, application_status, loan_status)
   sapply(names_to_check, function(x) check_name_existance(x, x_names))
 
   #And more checks
   # Verify timestamps
   names_to_check <- c(application_created_at)
-  sapply(application_created_at, function(xx) check_timestamp_fields(xx, x))
+  sapply(application_created_at, function(xx) check_timestamp_fields(xx, df))
 
   #Application IDs must be unique and not missing if given
   if(!is.na(application_id)) {
-    stopifnot(!anyNA(x[[application_id]]))
-    stopifnot(!any(duplicated((x[[application_id]]))))
+    stopifnot(!anyNA(df[[application_id]]))
+    stopifnot(!any(duplicated((df[[application_id]]))))
   }
 
   #Application status match
   if(!is.na(application_status)) {
 
-    stopifnot(!anyNA(x[[application_status]]))
+    stopifnot(!anyNA(df[[application_status]]))
 
     apps_statuses <- c('ISSUED', 'REJECTED', 'NOT_TAKEN_UP', 'WAITING_FOR_APPROVAL', 'CANCELLED', 'IN_PROCESS')
-    unique_app_statuses <- unique(x[[application_status]])
+    unique_app_statuses <- unique(df[[application_status]])
 
     unrecognised_app_statuses <- unique_app_statuses[!unique_app_statuses %in% apps_statuses]
     unmatched_statuses <- apps_statuses[!apps_statuses %in% unique_app_statuses]
@@ -150,7 +150,7 @@ loan_df <- function(x,
   predictors <- predictors[!is.na(predictors)]
 
   df <- new_loan_df(
-    x,
+    df,
     data_downloaded_at = data_downloaded_at,
     predictors = predictors,
     aliases = aliases
@@ -190,24 +190,24 @@ new_loan_df <- function(df = data.frame(),  predictors = NA,
   )
 }
 
-print.loan_df <- function(x, ...) {
+print.loan_df <- function(df, ...) {
 
-  cat('Loans data set contains ', nrow(x), ' rows and ', ncol(x), ' columns. \n \n')
-  non_na <- unlist(lapply(attributes(x)[["column_markers"]], function(x) names(x)[!is.na(x)]))
+  cat('Loans data set contains ', nrow(df), ' rows and ', ncol(df), ' columns. \n \n')
+  non_na <- unlist(lapply(attributes(df)[["column_markers"]], function(df) names(df)[!is.na(df)]))
   if(length(non_na) > 0) {
     cat(paste0('With the following column markers: ', paste(non_na, collapse = ', '), '\n \n'))
     if(any(non_na == 'application_created_at')) cat(paste0('Application_created_at quantiles: ', paste0(
-      as.Date(summary(x[, attributes(x)[["column_markers"]][['timestamp_fields']][['application_created_at']]])), collapse = ', '
+      as.Date(summary(df[, attributes(df)[["column_markers"]][['timestamp_fields']][['application_created_at']]])), collapse = ', '
     ), '\n \n'))
   } else {
     cat('There are no column  markers.\n \n')
   }
 
-  cat('The data downloaded at ', as.character(attributes(x)[['data_downloaded_at']]), '\n \n')
+  cat('The data downloaded at ', as.character(attributes(df)[['data_downloaded_at']]), '\n \n')
 
-  print(tibble::as.tibble(x)) #!!!
+  print(tibble::as.tibble(df)) #!!!
 
-  invisible(x)
+  invisible(df)
 }
 
 `$.loan_df` <- function(df, name) {
@@ -218,7 +218,7 @@ print.loan_df <- function(x, ...) {
     get(name, envir = aliases)
   } else {
     # Otherwise, use the default behavior
-    .Primitive("$")(x, name)
+    df[[name]]
   }
 }
 
