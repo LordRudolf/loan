@@ -1,23 +1,35 @@
-get_variable_dynamic_stats <- function(df, stats = c('woe', 'IV', 'PSI'), horizont = 'Q') {
+get_variable_dynamic_stats <- function(df, stats = c('woe', 'IV', 'PSI'), horizont = 'Q',
+                                       target = NULL, application_status = NULL, ...) {
 
 }
 
 #' @param varname the column name which we want to calculate WOE for
 get_group_stats <- function(df, varname, stats = c('woe', 'fisher_p_val'),
+                            target = NULL, application_status = NULL, 
                             ..., template_mat = NULL) {
-  #attributes_df <- generate_attribute_list(df)
+  
+  func_vars <- variables_availability_check(df, required_vectors = c(
+    'target'), ..., optional_vectors = 'application_status')
+  
+  target <- func_vars$target
+  if(is.null(func_vars[['application_status']])) {
+    application_status <- ifelse(is.na(target), 'REJECTED', 'ISSUED')
+  } else {
+    application_status <- func_vars$application_status
+  }
 
+  ## creating initial contingency tables ----------------------------------
   if(is.null(template_mat)) {
 
     if(!any(varname %in% colnames(df))) stop(paste0('The variable "', varname, '" has not been found in the data set'))
     ##TO DO: check that the variable names are not named after the markers
     the_var <- make_cont_table_var(df[[varname]], ...)
-
-    cont_table <- produce_contingency_table(the_var, df$target, df$application_status)
+    
+    cont_table <- produce_contingency_table(the_var, target, application_status)
 
   } else {
 
-    stop('Functionality hasnt been developed')
+    stop('Functionality hasnt been developed (yet)')
     ##TO DO: the template_mat is list that uses template form (the row and column values for the many iterations (e.g., different time periods))
     #in that case the_var shall already be coerced into the factor variable with not too many factor levels
   }
@@ -79,7 +91,6 @@ get_WOE <- function(x, ...) {
 }
 
 get_WOE.loan_cont_table <- function(cont_table, template_WOE = NULL) {
-
   total_bads <- sum(cont_table$count_BAD)
   total_goods <- sum(cont_table$count_GOOD)
 

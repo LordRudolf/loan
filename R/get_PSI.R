@@ -22,8 +22,6 @@ get_PSI.loan_df <- function(df,
                             ...
                             ) {
 
-  #attributes_df <- generate_attribute_list(df)
-
   if(is.character(interval) && length(interval) == 1) {
     ##TO DO: check the interval name against the lubridate::ceiling_date `unit` names
     time_splits <- lubridate::ceiling_date(df$application_created_at, unit = interval)
@@ -72,7 +70,7 @@ calculate_PSI_vector.loan_df <- function(df, the_var, interval = 'month', compar
   ##TO DO: mechanisms for `all_before` and other compare and current_obs periods
   ##Refer to the function get_PSI.loan_df
 
-  v <- calculate_PSI_vector(the_var, attributes_df$target, attributes_df$application_status, time_splits)
+  v <- calculate_PSI_vector(the_var, df$target, attributes_df$application_status, time_splits)
 
   return(v)
 }
@@ -85,9 +83,11 @@ calculate_PSI_vector.numeric <- function(the_var, target, application_status, ti
   for(j in 1:length(unique_periods)) {
 
     selected_cases <- time_splits == unique_periods[[j]]
-    cont_table <- produce_contingency_table(the_var[selected_cases], target[selected_cases], application_status[selected_cases])
 
-    if(j > 1) {
+    if(j == 1) {
+      cont_table <- produce_contingency_table(the_var[selected_cases], target[selected_cases], application_status[selected_cases])
+    } else {
+      cont_table <- produce_contingency_table(the_var[selected_cases], target[selected_cases], application_status[selected_cases], template_mat = cont_table_prev)
       v[[j]] <- calculate_PSI(cont_table,  cont_table_prev)
     }
 
@@ -102,7 +102,9 @@ calculate_PSI_vector.character <- calculate_PSI_vector.numeric
 calculate_PSI <- function(cont_table, cont_table_prev, param = 'issued_loans_total') {
   ##TO DO: check whether current_obs and prev_obs contain the sames groups/intervals
   ##TO DO: prevent having number of factor levels more than 16
-  ##
+
+  t1 <- cont_table_prev[, c('the_var', param)]
+  t2 <- cont_table[, c('the_var', param)]
 
   tt <- merge(cont_table[, c('the_var', param)], cont_table_prev[, c('the_var', param)], by = 'the_var', all = TRUE)
   tt$p1 <- tt[, 2] / sum(tt[, 2])
