@@ -59,12 +59,11 @@ loan_df <- function(df,
   stopifnot(any(c('POSIXt', 'POSIXct', 'Date') %in% class(data_downloaded_at)))
 
   x_names <- colnames(df)
-  names_to_check <- c(client_id, application_id, loan_id, application_created_at, application_status, loan_status)
+  names_to_check <- c(client_id, application_id, loan_id, application_created_at, application_status, loan_status, target)
   sapply(names_to_check, function(x) check_name_existance(x, x_names))
 
   #And more checks
   # Verify timestamps
-  names_to_check <- c(application_created_at)
   sapply(application_created_at, function(xx) check_timestamp_fields(xx, df))
 
   #Application IDs must be unique and not missing if given
@@ -141,10 +140,8 @@ loan_df <- function(df,
     target = target
   )
 
-
   ## TO DO: predictors shall be as an argument that the user may provide
-  aliases_names <- names(aliases)
-  predictors <- colnames(df)[!aliases_names %in% colnames(df)]
+  predictors <- colnames(df)[!colnames(df) %in% names_to_check]
   coltypes <- sapply(df[, predictors], class) %>% unlist()
   predictors <- predictors[coltypes %in% c('character', 'factor', 'numeric', 'integer')]
   predictors <- predictors[!is.na(predictors)]
