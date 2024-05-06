@@ -1,8 +1,10 @@
+#' @export
 produce_contingency_table <- function(x, ...) {
   UseMethod('produce_contingency_table')
 }
 
-produce_contingency_table.factor <- function(the_var, target, application_status = NULL, ...) {
+#' @export
+produce_contingency_table.factor <- function(the_var, target, application_status = NULL, template_mat = NULL, ...) {
 
   cont_table <- table(the_var) %>% as.data.frame()
 
@@ -12,7 +14,7 @@ produce_contingency_table.factor <- function(the_var, target, application_status
   cont_loan$the_var <- rownames(cont_loan)
 
   if(!is.null(application_status)) {
-    #TO DO: do not calculate issuance rate (and the the contingency table below) if the all applications have been approved
+    #TO DO: do not calculate issuance rate (and the the contingency table below) if all the applications have been approved
     cont_app <- table(the_var, application_status) %>% as.data.frame.matrix()
     colnames(cont_app) <- paste0('count_', colnames(cont_app))
     cont_app$applications_total <- rowSums(cont_app)
@@ -33,11 +35,17 @@ produce_contingency_table.factor <- function(the_var, target, application_status
   return(cont_table)
 }
 
+#' @export
 produce_contingency_table.character <- produce_contingency_table.factor
 
+#' @export
+produce_contingency_table.numeric <- function(the_var, target, application_status = NULL, template_mat = NULL, ...) {
+  if(!is.null(template_mat)) {
+    stopifnot(class(template_mat)[2] == 'loan_cont_table')
 
-produce_contingency_table.numeric <- function(the_var, target, application_status = NULL, ...) {
-
+    discretized_intervals <- template_mat$the_var
+    the_var_num <- discretize_values(the_var, breaks = 5, discretized_intervals = discretized_intervals)
+  }
   the_var_num <- discretize_values(the_var, breaks = 5)
   produce_contingency_table(the_var = the_var_num, target = target, application_status = application_status, ...)
 }

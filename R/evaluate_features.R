@@ -1,46 +1,43 @@
 
-auroc <- function(score, bool) {
-  n1 <- sum(!bool)
-  n2 <- sum(bool)
-  U  <- sum(rank(score)[!bool]) - n1 * (n1 + 1) / 2
-  return(1 - U / n1 / n2)
-}
-
 evaluate_features <- function(df, 
                               new_features, 
                               cv_folds = NA,
                               method = NA,
-                              y = NA,
+                              target = NA,
                               ...) {
   
   ## validating availability of dependent and independent variables
-  if(!is.na(y)) {
-    if(any(class(df) == 'loan')) print('Warning: using the user-defined dependent variable `y`')
+  if(!is.na(target)) {
+    if(any(class(df) == 'loan')) print('Warning: using the user-defined target variable')
     
-    if(length(y) == 1 & typeof(y) == 'character') {
-      count_occurrences <- sum(y == colnames(df))
+    if(length(target) == 1 & typeof(target) == 'character') {
+      count_occurrences <- sum(target == colnames(df))
       
       if(count_occurrences < 0) stop('The name of the dependent variable has not been found in the dataset `df`')
-      if(count_occurrences > 1) stop(paste0('Has been found multiple columns named ', y, '. There
+      if(count_occurrences > 1) stop(paste0('Has been found multiple columns named ', target, '. There
                                             can be only one dependent variable'))
       X <- df
-      X[[y]] <- NULL
-      y <- df[[y]]
-    } else if (length(y) == nrow(df)) {
+      X[[target]] <- NULL
+      target <- df[[target]]
+      #X <- X[, colnames(X) %in% attributes(X)$predictors]
+    } else if (length(target) == nrow(df)) {
       X <- df
     } else {
-      stop('The variable `y` shall be length 1 or equal to the observations in the dataset `df`')
+      stop('The target variable shall be length 1 or equal to the observations in the dataset `df`')
     }
     
     ## TO DO: check the type of the dependent variable
     ## TO DO: different evaluation stats for different types
     
   } else if((any(class(df) == 'loan')))  {
-    y <- df$target
-    X <- df ## TO DO: select only features
+    target <- df$target
+    X <- df[, attributes(df)$predictors] ## TO DO: select only features
   } else {
     stop('Provide name or vector of the dependent variable `y`, or convert the dataset `df` to class `loan`')
   }
+  dfx <- as_tibble(X)######### !!!!!!! Change this once alias var problem has been fixed
+  dfx$target <- assign('target', target)
+  dfx <- dfx[!is.na(dfx$target), ] #TO DO: keep missing values for the reject inference analysis
   
   ## validating features
   ## TO DO: option providing features list
@@ -59,14 +56,11 @@ evaluate_features <- function(df,
   
   ## validating cv folds
   if(is.na(cv_folds)) {
-    ## TO DO: make auto-cv-fold generation more tailored for a dataset
     
-    cv_folds <- createFolds(y, k = 5, returnTrain = FALSE)
+    cv_folds <- create_cv_folds(dfx$target, dfx[, colnames(dfx) != 'target'])
     
-    folds_vector <- unlist(cv_folds, recursive = FALSE) %>% sort() %>% names()
-    folds_vector <- substr(folds_vector, 1, 5)
-    
-    folds <- unique(folds_vector)
+    #folds_vector <- unlist(cv_folds, recursive = FALSE) %>% sort() %>% names()
+    #folds_vector <- substr(folds_vector, 1, 5)
   }
   
   ## validating train method
@@ -74,78 +68,56 @@ evaluate_features <- function(df,
     method <- 'ranger'
     ml_framework <- 'caret'
   }
-  
+
   ## The actual cross-validation is happening here
-  cv_preds <- as.data.frame(matrix(NA, nrow(X), 2+length(train_set_list)))
-  names(cv_preds) <- c('y', 'cv_fold', paste0(names(train_set_list)))
-  cv_preds$y <- y
-  cv_preds$cv_fold <- folds_vector
-  
-  model_stats <- as.data.frame(matrix(NA, length(train_set_list), length(folds)))
+  cv_preds <- as.data.frame(matrix(NA, nrow(dfx), 1+length(train_set_list)))
+  names(cv_preds) <- c('target', paste0(names(train_set_list)))
+  cv_preds$target <- dfx$target
+
+  model_stats <- as.data.frame(matrix(NA, length(train_set_list), length(cv_folds)))
   rownames(model_stats) <- names(train_set_list)
-  colnames(model_stats) <- folds
+  colnames(model_stats) <- names(cv_folds)
   
   variable_importances <- data.frame(variable = colnames(X))
-  
+  #variable_importances_temp 
+
   for(i in 1:length(train_set_list)) {
-  
-    for(f in folds) {
-      test_samp <- X[cv_folds[[f]], ]
-      test_y <- y[cv_folds[[f]]]
+    
+    rec <- autopreproc(dfx$target, dfx[, train_set_list[[i]]], method = method)
+    
+    all_obs <- (matrix(NA, nrow(dfx), length(cv_folds)))
+    
+    variable_importances_temp <- data.frame(variable = colnames(dfx)[-ncol(dfx)])[, 1, drop=FALSE]
+    for(f in 1:length(cv_folds)) {
+      test_samp <<- dfx[-cv_folds[[f]], ]
       
-      train_samp <- X[-cv_folds[[f]], ]
-      train_y <- y[-cv_folds[[f]]]
-        
-        ## TO DO: integrate ML training within this package
-        model <- caret::train(x = train_samp[, train_set_list[[i]]],
-                              y = train_y,
-                              method = 'ranger',
-                              tuneGrid = expand.grid(
-                                splitrule = 'gini',
-                                min.node.size = 5,
-                                mtry = c(3, 
-                                         ceiling(sqrt(ncol(X))),
-                                         ceiling((ncol(X))/3) )
-                              ),
-                              trControl = trainControl(
-                                method = 'cv',
-                                number = 4,
-                                classProbs = TRUE,
-                                savePredictions = 'final',
-                                summaryFunction = twoClassSummary,
-                                returnData = FALSE
-                              ))
-        pred <- predict(model, test_samp, type = 'prob')$Bad
-        
-        model_stats[i,f] <- auroc(pred, test_y == 'Bad')
-        cv_preds[cv_preds$cv_fold == f, names(train_set_list)[i]] <- pred
+      train_samp <<- dfx[cv_folds[[f]], ]
+      
+      model <- train_model(rec, train_samp, method = method, ml_framework = ml_framework)
+      print('x1')
+     
+      pred <- predict(model, test_samp, type = 'prob')$BAD
+      print('x2')
+      model_stats[i,f] <- auroc(pred, test_samp$target == 'BAD')
+      print('x3')
+      print(model_stats)
+      print('x4')
+      all_obs[-cv_folds[[f]], f] <- pred ##error here
+      print('x5')
+      
+      imps <- caret::varImp(model)$importance 
+      imps$variable <- rownames(imps)
+      variable_importances_temp <- merge(variable_importances_temp, imps, by = 'variable', all.x = TRUE)
+      names(variable_importances_temp)[f + 1] <- names(cv_folds)[f]
+      
+      #cv_preds[cv_preds$cv_fold == f, names(train_set_list)[i]] <- pred
     }
     
-    model <- caret::train(x = X[, train_set_list[[i]]],
-                                           y = y,
-                                           method = 'ranger',
-                                           tuneGrid = expand.grid(
-                                             splitrule = 'gini',
-                                             min.node.size = 5,
-                                             mtry = c(3, 
-                                                      ceiling(sqrt(ncol(X))),
-                                                      ceiling((ncol(X))/3) )
-                                           ),
-                                           importance = 'impurity',
-                                           trControl = trainControl(
-                                             method = 'cv',
-                                             number = 4,
-                                             classProbs = TRUE,
-                                             savePredictions = FALSE,
-                                             summaryFunction = twoClassSummary,
-                                             returnData = FALSE
-                                           ))
+    cv_preds[,i + 1] <- apply(all_obs, 1, mean, na.rm = TRUE)
     
-    imp <- varImp(model)[["importance"]]
-    colnames(imp) <- names(train_set_list)[i]
-    imp$variable <- rownames(imp)
-    
-    variable_importances <- merge(variable_importances, imp, by = 'variable', all.x = TRUE)
+    variable_importances_temp$avg_imp <- apply(variable_importances_temp[, 2:ncol(variable_importances_temp)], 1, mean, na.rm = TRUE)
+    variable_importances <- merge(variable_importances, variable_importances_temp[, c(1, ncol(variable_importances_temp))], by = 'variable', all.x = TRUE)
+    names(variable_importances)[ncol(variable_importances)] <- names(train_set_list)[i]
   }
   
   output <- list(
@@ -219,20 +191,20 @@ visualize_worth <- function(output, worth_good = 100, worth_bad = -100, variable
   cv_preds <- output$cv_preds
   
   if(is.na(variable_set)) {
-    variable_set <- colnames(cv_preds)[4]
+    variable_set <- colnames(cv_preds)[3]
   }
   cv_preds$new_preds <- cv_preds[[variable_set]]
   
   cv_preds <- cv_preds[order(cv_preds$vanilla), ]
-  cv_preds$cum_goods_vanilla <- cumsum(cv_preds$y == 'Good')
-  cv_preds$cum_bads_vanilla <- cumsum(cv_preds$y == 'Bad')
+  cv_preds$cum_goods_vanilla <- cumsum(cv_preds$target == 'GOOD')
+  cv_preds$cum_bads_vanilla <- cumsum(cv_preds$target == 'BAD')
   cv_preds$bad_rate_vanilla <- cv_preds$cum_bads_vanilla / (cv_preds$cum_bads_vanilla + cv_preds$cum_goods_vanilla)
   cv_preds$profit_vanilla <- cv_preds$cum_goods_vanilla * worth_good + cv_preds$cum_bads_vanilla * worth_bad
   cv_preds$acceptance_rate_vanilla <- (1:nrow(cv_preds))/nrow(cv_preds)
   
   cv_preds <- cv_preds[order(cv_preds$new_preds), ]
-  cv_preds$cum_goods <- cumsum(cv_preds$y == 'Good')
-  cv_preds$cum_bads <- cumsum(cv_preds$y == 'Bad')
+  cv_preds$cum_goods <- cumsum(cv_preds$target == 'GOOD')
+  cv_preds$cum_bads <- cumsum(cv_preds$target == 'BAD')
   cv_preds$bad_rate <- cv_preds$cum_bads / (cv_preds$cum_bads +  cv_preds$cum_goods)
   cv_preds$profit <- cv_preds$cum_goods * worth_good + cv_preds$cum_bads * worth_bad
   cv_preds$acceptance_rate <- (1:nrow(cv_preds))/nrow(cv_preds)
@@ -256,15 +228,15 @@ visualize_worth <- function(output, worth_good = 100, worth_bad = -100, variable
   
   ggplot(profit_compare[profit_compare$number_of_accepted_cases > 10, ], 
          aes(x = acceptance_rate, y = profit_increase_per_application)) +
-    geom_smooth() +
+    geom_smooth(method="loess", span=1) + ##TO DO: use confidence bands instead of interval
     geom_hline(yintercept = 0, color = 'red', size = 1) +
     geom_jitter(alpha = 0.15) +
     theme_minimal()
 }
 
 
-
-output <- evaluate_features(GermanCredit, new_features = 'Amount', y = 'Class')
-visualize_paired_u_test(output)
-visualize_variable_importance(output)
-visualize_worth(output, 10, -100)
+#GermanCredit$Class <- ifelse(GermanCredit$Class == 'Bad', 'BAD', 'GOOD')
+#output <- evaluate_features(GermanCredit, new_features = 'Amount', target = 'Class')
+#visualize_paired_u_test(output)
+#visualize_variable_importance(output)
+#visualize_worth(output, 10, -25)
