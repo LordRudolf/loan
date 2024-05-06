@@ -1,0 +1,81 @@
+---
+title: "individual_features_explanation"
+author: 'Rudolfs Kregers'
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{individual_features_explanation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+Along with the **loan** package We also use **dplyr** for user-intuitive R syntax.
+We also use the *fintech* dataset for from the **loans** package. 
+
+```{r setup}
+library(loan)
+library(dplyr)
+
+data(fintech)
+
+predictor_cols <- colnames(fintech)[14:ncol(fintech)]
+
+#creating the binary class outcome
+fintech$class <- case_when(is.na(fintech$fpd) ~ NA, fintech$fpd > 15 ~ 'bad', TRUE ~ 'good')
+
+df <- loan_df(
+  fintech,
+  define_aliases(
+    binary_outcome = list(
+      class = list(
+        GOOD = 'good',
+        BAD = 'bad'
+      )
+    ),
+    application_status = list(
+      application_status = list(
+        ACCEPTED = 'LOAN_ISSUED',
+        REJECTED = 'REJECTED',
+        CANCELLED = 'CANCELLED',
+        IN_PROCESS = c('PENDING', 'APPROVED')
+      )
+    ),
+    loan_status = list(
+        loan_status = list(
+          ACTIVE = c('PERFORMING', 'PAST_DUE'),
+          PAID = 'PAID_OFF',
+          DEFAULTED = 'DEFAULTED',
+          VOIDED = 'VOIDED'
+        )
+      ),
+    days_past_due_outcome = c('current_dpd', 'fpd'),
+    application_id = 'application_id',
+    loan_id = 'loan_id',
+    client_id = 'client_id',
+    application_created_timestamp = 'app_created_at',
+    other_timestamp_colnames = c('loan_paid_date'),
+    predictors_colnames = predictor_cols
+  )
+)
+
+```
+
+
+
+``` {r get_stats_for_all_variables}
+
+```
+
+
+Frequently we are interested exploring on how separate variables contribute to loan defaults. Here, for example, let's see how the variable *age* performs for new loan issuance:
+
+```{r age_univariate_exploration}
+get_group_stats(df[df$loan_seq_number == 1,], 'client_age')
+```
+

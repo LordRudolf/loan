@@ -1,2 +1,6 @@
+importFrom(magrittr, "%>%")
 exportPattern("^[[:alpha:]]+")
-importFrom(magrittr,"%>%")
+S3method("$", "loan_df")
+S3method("produce_contingency_table", "numeric")
+S3method("produce_contingency_table", "factor")
+S3method("produce_contingency_table", "character")

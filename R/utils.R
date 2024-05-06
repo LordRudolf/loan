@@ -56,6 +56,7 @@ discretize_values <- function(var, breaks, discretized_intervals = NULL) {
   } else {
     var <- arules::discretize(var, breaks = breaks, infinity = TRUE)
     levels(var) <- c(levels(var), 'value_NA')
+    var[is.na(var)] <- 'value_NA'
   }
 
   return(var)
@@ -69,177 +70,164 @@ make_cont_table_var <- function(the_var, breaks = 10, unique_val = 10) {
   } else {
     stop('The variable is not either numeric or character')
   }
-}
-
-generate_attribute_list <- function(df) {
-  available_attributes <- attributes(df)[["column_markers"]]
-  available_attributes <- c(available_attributes[[1]], available_attributes[[2]], available_attributes[[3]])
-  not_available <- names(unlist(available_attributes))[is.na(unlist(available_attributes))]
-
-  attributes_df <- tibble::as_tibble(lapply(available_attributes, function(x) if(is.na(x)) NA else df[[x]]))
-
-  if('application_id' %in% not_available) {
-    attributes_df$application_id <- 1:nrow(df)
-  }
-
-  if('application_status' %in% not_available) {
-    if('loan_status' %in% available_attributes) {
-      attributes_df$application_status <- ifelse(is.na(attributes_df$loan_status), 'REJECTED', 'ISSUED')
-    } else if ('loan_id' %in% available_attributes) {
-      attributes_df$application_status <- ifelse(is.na(attributes_df$loan_id), 'REJECTED', 'ISSUED')
-    } else {
-      # Assume that all applications were accepted and issued
-      attributes_df$application_status <- 'ISSUED'
-    }
-  }
-
-  ## TO DO
-  #if('loan_status' %in% not_available) {
-  #  #if loan status is not given then assume that all rows are individual loans
-  #  #populate by loan id as in operation few lines above the loan id has been already defined
-  #
-  #  attributes_df$loan_id
-  #}
-  if('loan_status' %in% available_attributes) {
-    attributes_df$loan_status <- df$loan_status
-  }
-
-  if('loan_id' %in% not_available) {
-    if('application_status' %in% available_attributes) {
-      xx <- attributes_df$application_status =='ISSUED'
-      attributes_df$loan_id[xx] <- 1:sum(xx)
-    } else if('loan_status' %in% available_attributes) {
-      xx <-  !is.na(attributes_df$loan_status)
-      attributes_df$loan_id <- 1:sum(xx)
-    } else {
-      # if loan_id is not given then assume that all the rows are individual loans
-      attributes_df$loan_id <- 1:nrow(df)
-    }
-  }
-
-  ##TO DO: Make smarter target variable creation
-  attributes_df$target <- ifelse(df$fpd15 == 1, 'BAD', 'GOOD')
-
-  print('Outcome from the generate_attribute_list:')
-  print(attributes_df)
-
-  return(attributes_df)
-}
-
-detect_target <- function(target_var) {
-  tabl <- table(target_var, exclude = NA)
-  unique_classes <- length(tabl)
-  tabl_names <- names(tabl)
-
-  possible_good <- stringr::str_detect(tolower(tabl_names),
-                         'good|paid')
-  possible_bad <- stringr::str_detect(tolower(tabl_names),
-                                       'bad|default')
-
-  if(length(unique(na.omit(target_var))) == 2) {
-    if(sum(possible_good) == 2 | sum(possible_bad)) stop('Ambigious target class names')
-    if(sum(possible_good) == 1) {
-      target_good_name <- tabl_names[possible_good]
-    } else if(sum(possible_bad) == 1) {
-      target_good_name <- tabl_names[!possible_bad]
-    } else {
-      target_good_name <- names(tabl)[which.max(tabl)]
-      warning(paste0('Assigning the `GOOD` target class to the majority of target clases currently named as ',
-                     target_good_name))
-    }
-
-    target <- target_var
-    target[!is.na(target_var) & as.character(target_var) == target_good_name] <- 'GOOD'
-    target[!is.na(target_var) & as.character(target) != 'GOOD'] <- 'BAD'
-  }
-
-  ## TO DO: assign more classes
-
-  return(target)
-}
-
-detect_application_status <- function(application_status_var) {
-  #tabl <- table(application_status_var, exclude = NA)
-
-  application_status <- application_status_var
-
-  ## TO DO: all of this
-  return(application_status)
-}
-
-
-error_message <- function(vec) {
-  stop(paste0('The argument ',
-              vec,
-              ', if defined by a user, must be a vector with length equal to the number of rows in `df`, or a character length == 1 corresponding to column names in `df`'))
-}
   
+  return(the_var)
+}
+
+# 
+# d1 <- data.frame(
+#   target = c(1, 1, 1, 0, 0, 0),
+#   ids = as.character(c(1, 2, 1, 2, 1, 3)),
+#   var1 = 1:6,
+#   var2 = letters[1:6]
+# )
+# d2 <- loan_df(d1,define_aliases(binary_outcome = list(target = list(GOOD = 1, BAD = 0)), loan_id = 'ids'))  
+# 
+# f <- function(d, binary_outcome, loan_id = NULL) {
+#   variables_availability_check(d, required_vectors = 'binary_outcome', optional_vectors = 'loan_id')
+#   if(is.null(loan_id)) {
+#     out <- data.frame(v1 = binary_outcome)
+#   } else {
+#     out <- data.frame(v1 = binary_outcome, v2 = loan_id)
+#   }
+#   return(out)
+# }
+# f(d1) #Non loan_df class - expecting error as no argument provided
+# f(d1, binary_outcome = 'target') # Providing the column name: works as expected
+# 
+# f(d2) #loan_df class - expecting it to automatically detect the relevant arguments
+# f(d2, binary_outcome = 'var1') # Providing column name different than the loan_df aliases will override the aliases input
+# f(d2, loan_id = FALSE) #If we do not want loan_df auto-providing the optional vector we can override it with providing argument FALSE
+# 
+# f(d1, binary_outcome = as.logical(d1$target))  # We can provide also arguments as vectors
 variables_availability_check <- function(df, required_vectors, ..., optional_vectors = NULL, detect_unused_cols = FALSE) {
-  # Extract additional arguments
+  
+  is_df_loan_df_object <- any(class(df) == 'loan_df')
+  if(is_df_loan_df_object) {
+    aliases_available <- names(attributes(df)$loan_df_info$primary_aliases)
+  }
+  
   args <- modifyList(list(...), as.list(parent.frame()), keep.null = TRUE)
-  if(length(optional_vectors) >= 0) required_vectors <- unique(c(required_vectors, optional_vectors))
+  args_table <- data.frame(
+    arg = c(required_vectors, optional_vectors),
+    mandatory = c(rep(TRUE, length(required_vectors)), rep(FALSE, length(optional_vectors))),
+    indicated_as_not_for_use = FALSE,
+    provided = NA,
+    provided_as_column_name = NA
+  )
+  #removing duplicates. The mendatory arguments are the first in order; therefore, it they duplicating with optional vectors, the higher importance argument info will prevail
+  args_table <- args_table[!duplicated(args_table$arg),]
   
-  args <- args[names(args) %in% required_vectors]
-  
-  for(vec in names(args)) {
-    if(is.null(args[[vec]])) {
-      args[[vec]] <- NULL
-    } else if (length(args[[vec]]) == 1 && is.na(args[[vec]])) {
-      args[[vec]] <- NULL
-    }
-  }
-  
-  # Initialize a list to store the final variables
-  final_vars <- list()
-  used_col <- vector()
-  
-  # Loop through each required vector
-  for (vec in required_vectors) {
+  names_provided <<- names(args)[unlist(lapply(args, function(x) {
+    !(class(x)[[1]] == 'name' | #in case if argument not provided
+      is.null(x)) #do not consider it if the argument provided as null
+  }))]
+  args_table$provided <- args_table$arg %in% names_provided
+  argsss<- args
+  if(is_df_loan_df_object) { #providing arguments not for use is applicable only for loan_df
     
-    if (vec %in% names(args)) {
-      if(length(args[[vec]]) == 1) { #The case when the vector can be found in `df` by column name
-        if(!is.character(args[[vec]])) error_message(vec)
-        the_var <- df[, args[[vec]] ]
-        if(is.null(the_var)) stop(paste0('The variable ', vec, ' has not been found in `df`'))
-        final_vars[[vec]] <- the_var
-      } else if(length(args[[vec]]) == nrow(df)) {
-        final_vars[[vec]] <- args[[vec]]
+    #in this function we find in error-free way which arguments where shown as FALSE
+    names_not_for_use <- names(args)[unlist(lapply(args, function(x) {
+      if(!is.null(x)) {
+        if(is.logical(x) && length(x) == 1) {
+          !x
+        } else {
+          FALSE
+        }
       } else {
-        error_message(vec)
+        FALSE
       }
-      
-      #End of args[[vec]]) == 1
-      
-    } else if(class(df)[1] == 'loan_df') {
-      if(any(vec == names(attributes(df)$aliases))) {
-        
-        final_vars[[vec]] <- attributes(df)$aliases[[vec]]
-        
-      } else {
-        stop(sprintf("The column `%s` hasn't been defined.", vec))
-      }
-
-      
-    } else if (vec %in% optional_vectors) {
-      
-      ## Do nothing. The optional variable hasn't been found. Continue the loop
-      
-    } else {
-      # If the vector is neither provided as an argument nor a column in df, throw an error
-      stop(sprintf("The column `%s` hasn't been defined.", vec))
-    }
+    }))]
+    args_table$indicated_as_not_for_use <- args_table$arg %in% names_not_for_use & args_table$arg %in% aliases_available
+    args_table$provided[args_table$indicated_as_not_for_use] <- FALSE
     
-    if(length(args[[vec]]) == 1) {
-      used_col <- c(used_col, args[[vec]])
+    for(override_arg in args_table$arg[args_table$indicated_as_not_for_use]) {
+      #setting values to NULL to get the default values of these arguments
+      assign(override_arg, NULL, envir = parent.frame())
     }
   }
-  used_col <- c(used_col, required_vectors, optional_vectors)
   
-  if(detect_unused_cols) {
-    final_vars$unused_cols <- colnames(df)[!colnames(df) %in% used_col]
+  for(i in 1:nrow(args_table)) {
+    arg_of_interest <- args[[args_table$arg[[i]]]]
+    if(args_table$provided[[i]]) {
+      args_table$provided_as_column_name[[i]] <- (length(arg_of_interest) == 1) && (class(arg_of_interest) == 'character')
+    }
   }
+  args_table$provided_as_column_name[is.na(args_table$provided_as_column_name)] <- FALSE
   
-  return(final_vars)
+  #assigning the new variables to the parent frame
+  for(i in 1:nrow(args_table)) {
+    
+    ##The structure below:
+      #1 If argument been provided
+      #1.1      if yes: take the provided value (and check how it was provided and verify if it is correct)
+      #1.2      if not: check if it was required/mandatory
+      #1.2.1          if yes: check if it is loan_df
+      #1.2.1.1            if yes: check if it is within loan_df aliases
+      #1.2.1.1.1              if yes: take it from there
+      #1.2.1.1.2              if not: stop
+      #1.2.1.2            if not (not loan_df): stop
+      #1.2.2          if not (not mandatory): check if it is loan_df && is NOT indicates as not for use
+      #1.2.2.1            if yes: check it it can be located in loan_df aliases
+      #1.2.2.1.1              if yes: take it
+      #1.2.2.1.2              if not: next
+      #1.2.2.2            if not (not mandatory and cannot be found in loan_df aliases: next
+    
+    if(args_table$provided[[i]]) {
+      #1.1
+      
+      #Argument provided
+      reference_arg <- args[names(args) == args_table$arg[[i]] ][[1]]
+      
+      if(args_table$provided_as_column_name[[i]]) {
+        if(all(colnames(df) != reference_arg)) stop(sprintf("The name '%s' provided as argument '%s' hasn't been found in the dataset",
+                                                            reference_arg, args_table$arg[[i]]))
+        assign(args_table$arg[[i]], df[[reference_arg]], envir = parent.frame()) #asigning variable if argument provided as column name 
+      } else if (!args_table$provided_as_column_name[[i]]) {
+        if(length(reference_arg) != nrow(df)) stop(sprintf("If the argument '%s' been provided as vector then it's length must match the number of rows in the dataset.", args_table$arg[[i]]))
+        assign(args_table$arg[[i]], reference_arg, envir = parent.frame()) #asigning variable if argument provided as vector
+      } else {
+        stop('Some hypotethical situation which should not existi if everything else before been correctly configured')
+      }
+    } else { 
+      #1.2 scenario Where the argument hasn't been provided
+      if(args_table$mandatory[[i]]) {
+        #1.2.1 argument required and it hasn't been provided. Only hope is if it can be located within loan_df aliases
+        if(is_df_loan_df_object) {
+          #1.2.1.1
+          if(any(args_table$arg[[i]] == aliases_available)) { #check if this specific aliases been defined within loan_df
+            #1.2.1.1.1
+            ex <- parse(text = paste0('df$.', 'outcome')) 
+            assign(args_table$arg[[i]], eval(ex), envir = parent.frame())
+          } else {
+            #1.2.1.1.2
+            stop(sprintf("The argument '%s' hasn't been provided nor been defined as `loan_df` aliases. Please provide the argument `%s` or define it in your dataset aliases.", 
+                         args_table$arg[[i]], args_table$arg[[i]] ))
+          }
+        } else {
+          #1.2.1.2 Argument required and it is not loan_df
+          stop(sprintf("The argument '%s' hasn't been provided. Please define '%s' or convert your dataset to `loan_df` object (check `?loan_df` for more information)", 
+                       args_table$arg[[i]], args_table$arg[[i]] ))
+        }
+      } else {
+        #1.2.2 argument not provided and is not required
+        if(is_df_loan_df_object && !args_table$indicated_as_not_for_use[[i]]) {
+          #1.2.2.1
+          if((any(args_table$arg[[i]] == aliases_available))) {
+            #1.2.2.1.1.
+            ex <- parse(text = paste0('df$.', args_table$arg[[i]])) 
+            assign(args_table$arg[[i]], eval(ex), envir = parent.frame())
+          } else {
+            #1.2.2.1.2
+            next
+          }
+        } else {
+          #1.2.2.2 argument not provided, and could not be found in loan_df aliases / or been explicitly told that not for use
+          next
+        }
+      }
+    }
+  }
 }
 
 

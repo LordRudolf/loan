@@ -1,0 +1,124 @@
+---
+title: "Short introduction"
+author: 'Rudolfs Kregers'
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting started}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+The **loan** package contains functions for the credit portfolio analysis.
+
+To loan the package write:
+
+```{r setup}
+library(loan)
+```
+
+
+# Creating `loan_df` object
+
+Usually, the portfolio datasets have the following structure:
+
+* each row of dataset contains individual loan
+* each column of the dataset represent specific feature of the loans, plus, usually there is another at least one outcome column which indicates the loan delinquency status (also know as the target variable or loan status).
+
+The **loan** package uses the same principal but extends the idea for the flexibility reasons that each row represents each time when we are making a decision whether to disburse a loan or not. It corresponds to the application-level data where each rows represent individual client applications which, in additional to the loan status, has application. Each feature corresponds to all the information we have at the moment client makes application and outcome columns represents anything that happens after we make a decision whether to accept or reject the client application.
+
+Providing application-level data is optional for the user. Providing the loan-level data only will be sufficient for all the portfolio quality analysis functions the package provides.
+
+The **loan** package has function `loan_df` which converts the data set (whether in application-level or loan-level) to a `loan_df` `tibble` classes. The data-set conversion to the new class is optional although recommended. Conversion to the new class provides more convenient use of the functions the package offers and some bug checks.
+
+## Independent loan-level dataset and introduction to define_aliases
+
+The simplest structure we may have contains only represented in each row and their features without id, timestamps or abstract variables. For our demonstration we will be using  the popular *GermanCredit* dataset already preprocessed in the **caret** package. For the convenience, we recommend overview the datasets using the function `skim` from the **skimr** package. We see this dataset is having only a single nominal variable which is named *Class* representing whether the client defaulted or not defaulted on the specific loan. The rest of the 61 variables are the features which are known upon the moment we need to review the application. We can load the dataset via:
+
+```{r GermanCredit}
+data(GermanCredit, package = 'caret')
+
+skimr::skim(GermanCredit[, 1:10]) #showing only the first 10 columns to not overwhelm ourselves with the printed output
+
+table(GermanCredit$Class)
+```
+
+We can convert the dataset to `loan_df` class using the function `loan_df`. Simply converting it from 'tibble' (or equivalent) class without providing any additional context it won't provide additional benefits converting the dataset to `loan_df` class. We will introduce several arguments which can be provided and making the life afterwards easier in later chapters but now let's introduce the `aliases`argument. 
+
+'aliases' is a list of aliases mapping created using the function `define_aliases`. It provides standardized column names across various credit-portfolio datasets. Here, in *GermanCredit* we have only one outcome variable (named *Class*) and the rest are the predictors. Via the function `define_aliases` we explicitly define that the column *Class* is the binary outcome variable of the dataset.
+
+``` {r define_aliases}
+aliases_obj <- define_aliases(GermanCredit, binary_outcome = list(Class = list(GOOD = 'Good', BAD = 'Bad')))
+```
+
+Initially, this argument assignment may seem too wordy as it creates a list within a list but here is a valid justification: the function `define_aliases` contain several predefined aliases arguments (here we visited only `binary_outcome` argument but in more complex and extended datasets it will be extended to several different id columns, timestamps, applications statuses and more) for which there could be more than one dataset columns. A list provides option to define more than one dataset column for the given aliases. In this case, we had binary outcome variable under the column named 'Class' but in other datasets there could be multiple different binary outcome variables for the same samples. And, answering on why there is a list within a list (talking about the "list(GOOD = 'Good', BAD = 'Bad')" part) - here we are creating a dictionary for the dataset column values according to the predefined mapping. 
+
+Later, in the subsection *Single-payment loan applications dataset* there will be given more examples.
+
+Now, continuing creating the `loan_df` object with the given aliases we run the following lines. After we have created the `loan_df` object we can call the column *Class* as *.binary_outcome* which will be unified across all 'loan_df' datasets where the outcome classes been defined. 
+
+```{r GermanCredit2loan}
+loan_GermanCredit <- loan_df(GermanCredit, aliases = aliases_obj)
+
+table(loan_GermanCredit$.binary_outcome)
+```
+
+The *GermanCredit* dataset is very simple dataset and we have almost no added value converting the dataset to `loan_df` class object. However, in later examples we will demonstrate the benefits of doing so on more complicated credit-datasets.
+
+## Single-payment loan applications dataset
+*fintech* is built in dataset. It contains comprehensive information of a single-payment loans credit portfolio that includes many different input and output fields. An important distinction to the *GermanCredit* dataset is that *fintech* contains application-level data. It means that shows information of not only issued loans but also all the applications received from the clients, including the rejected applications due to various lending rules and cancelled by the clients. First, let's open it and shortly skim over it.
+
+```{r fitnech_overview}
+data(fintech)
+
+fintech_overview <- skimr::skim(fintech)
+
+head(fintech_overview)
+tail(fintech_overview)
+```
+
+We see there a wide range of variables which are not only the dependent variable and the predictors but also time stamps, statuses, id variables and more which may have their own use in modelling depending on types of analyses you want to do. Here, to keep more structured overseeing over dataset columns and usage of many package functions make easier to use and more automated it is good idea converting the dataset to `loan_df` with predefined column aliases early on. You may call `?define_aliases` to see the specific aliases you may need to define and their keys. 
+
+```{r fintech_loan_df}
+## see the values of application_status to understand which keys shall be defined in mapping
+unique(fintech$application_status)
+
+loan_fintech <- loan_df(
+  fintech,
+  define_aliases(
+    application_status = list(
+      application_status = list(
+        ACCEPTED = 'LOAN_ISSUED',
+        REJECTED = 'REJECTED',
+        CANCELLED = 'CANCELLED',
+        IN_PROCESS = c('PENDING', 'APPROVED') #in fintech dataset, PEDNING are the applications which still haven't processed by the lender but APPROVED - been approved by the lender but the final offer hasn't been accepted by the client
+      )
+    ),
+    loan_status = list(
+        loan_status = list(
+          ACTIVE = c('PERFORMING', 'PAST_DUE'),
+          PAID = 'PAID_OFF',
+          DEFAULTED = 'DEFAULTED',
+          VOIDED = 'VOIDED'
+        )
+      ),
+    days_past_due_outcome = c('current_dpd', 'fpd'),
+    application_id = 'application_id',
+    loan_id = 'loan_id',
+    client_id = 'client_id',
+    application_created_timestamp = 'app_created_at',
+    other_timestamp_colnames = c('loan_paid_date')
+  )
+)
+```
+
+After you have created the `loan_df` class object you can may need 
+``` {r fintech update_loan_df}
+list_aliases(loan_fintech)
+```

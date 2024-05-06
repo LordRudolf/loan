@@ -2,58 +2,55 @@
 % Please edit documentation in R/loandf.R
 \name{loan_df}
 \alias{loan_df}
-\title{Create a data frame object easily recognized by the other `loan` package functions with the relevant credit-loan-portfolio-indicative.}
+\title{Create a data frame object easily recognized by the other `loan` package functions with the relevant credit-loan-portfolio-indicative.
+It is designed to work seamlessly with aliases defined using the `define_aliases` function, facilitating consistent data analysis workflows in credit portfolio analysis.}
 \usage{
-loan_df(
-  x,
-  client_id = NA,
-  application_id = NA,
-  loan_id = NA,
-  application_created_at = NA,
-  application_status = NA,
-  loan_status = NA,
-  target = NA,
-  data_downloaded_at = Sys.time()
-)
+loan_df(df, aliases = list(), workflow = NA, data_downloaded_at = Sys.time())
 }
 \arguments{
-\item{x}{A data frame or matrix of the credit loan/application portfolio data set where each row indicates individual loans or applications but the columns -
-all the information related to the corresponding loan/application including, but not limited to, observations data (characteristics available before taking a loan issuance decision),
-client/application/loan id fields, created at or registered at time stamp fields, current days passed due, and more.}
+\item{df}{A data.frame or tibble containing the loan portfolio dataset. This dataset should include columns that correspond to the aliases defined in the `aliases` argument.}
 
-\item{client_id}{The column name that contains unique client identification number. Leave it NA if not available.}
+\item{aliases}{A list of alias mappings created using the `define_aliases` function. This list specifies how columns in `df` should be renamed or transformed to fit standardized analysis templates. The `aliases` argument can directly take the output of `define_aliases`, which allows for a flexible and powerful way to manage dataset preprocessing. For more information on how to use `define_aliases`, see its detailed documentation and examples.}
 
-\item{application_id}{The column name that contains unique loan application identification number. Leave it NA if not available.}
-
-\item{loan_id}{The column name that contains unique loan identification number. Leave it NA if not available.}
-
-\item{application_created_at}{The column name that indicates the application's creation datetime. For a higher accuracy, it is recommended
-that the column is `POSIXct` class but `Date` class will also work. Leave it NA if not available.}
-
-\item{application_status}{The column name that indicates the loans applications' statuses. The column must be a character or factor class. The recognized
-application statuses: \n
- * `ISSUED`: The application has been accepted resulted in an issued loan. \n
- * `REJECTED`: The application has been rejected due to the internal lending rules and/or the scorecard. \n
- * `NOT_TAKEN_UP`: The client application has been approved by the lending processes but the client hasn't approved herself the final offer resulting in the application cancellation. \n
- * `WAITING_FOR_APPROVAL`: Similarly as `NOT_TAKEN_UP` the client has been approved by the lending rules but the loan hasn't been issued yet because the client hasn't accepted the
- final offer. The difference is that `WAITING_FOR_APPROVAL` applications still can be approved by the client resulting in `ISSUED` (if the client accepts) status or
- `NOT_TAKEN_UP` (client rejects the final offer or the offer expires) status. \n
- * `CANCELLED`: The client has started creating the application but it was cancelled (most often, unfinished; therefore, not submitted) even before the evaluation. \n
- * `IN_PROCESS`: The application currently is being evaluated and, in the near future, the status will change to the `REJECTED` (if it did no pass the internal evaluation),
- `WAITING_FOR_APPROVAL` (if it passed the internal evaluation and the offer needs to be accepted by the client), or `ISSUED` (if it passed the internal evaluation and additional
- offer acceptance by the client is not required).}
-
-\item{data_downloaded_at}{The data set acquisition date. May be used for the forecasting related analysis where it becomes relevant. The default is the current date.}
+\item{data_downloaded_at}{The timestamp indicating when the data was downloaded or last updated. This parameter defaults to the current system time but can be overridden to reflect the actual data acquisition time.}
 }
 \value{
-A `loan_df` object, which can be easily used with the other `loan` package functions. A `loan_df`object is also a data frame.
+A `loan_df` object, which can be seamlessly used with the other `loan` package functions under standardized column names.
 }
 \description{
 The function takes an existing data frame containing columns that are typically available for the loan portfolio data sets
 (e.g., loan status, application created_at, client id, first payment due, etc.) and turns them into a new data frame object recognized by the other
 `loan` package functions for the automatic and easy data analysis.
 }
+\details{
+The `loan_df` function is part of a suite of tools designed for credit portfolio analysis. It leverages the `aliases` defined by the user to standardize dataset columns, making it easier to apply consistent analysis and modeling techniques across different datasets. The function evaluates the `aliases` within the context of the provided dataset, applying the necessary transformations and mappings.
+
+The integration with `define_aliases` allows for a flexible and powerful way to manage dataset preprocessing, enabling analysts to define complex mappings and transformations in a structured and reusable manner.
+}
 \examples{
-Lalallaaaa
-a <- 1:100
+# Load the fintech dataset included with the package
+data(fintech)
+
+# Transform 'fintech' into a 'loan_df' object with standardized aliases
+df <- loan_df(fintech,
+             define_aliases(
+               application_status = list(application_status = list(ACCEPTED = 'LOAN_ISSUED', 
+                                                                   REJECTED = c('REJECTED'),
+                                                                   CANCELLED = 'CANCELLED',
+                                                                   IN_PROCESS = c('APPROVED', 'PENDING'))),
+               loan_status = list(loan_status = list(
+                 PAID = 'PAID_OFF',
+                 DEFAULTED = 'DEFAULTED',
+                 VOIDED = 'VOIDED',
+                 ACTIVE = c('PERFORMING', 'PAST_DUE')
+               )),
+               days_past_due_outcome = c('fpd'),
+               application_id = c('application_id'),
+               loan_id = c('loan_id'),
+               client_id = c('client_id'),
+               application_created_timestamp = c('app_created_at')
+             ),
+             data_downloaded_at = as.Date('2021-10-30')
+)
+
 }

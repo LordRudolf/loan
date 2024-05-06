@@ -1,7 +1,7 @@
 Package: loan
 Type: Package
 Title: Comprehensive Loan Portfolio Analysis and Credit Risk Management
-Version: 0.1.0 
+Version: 0.1.0
 Authors@R: c(
     person("Rudolfs", "Kregers", email = "lordrudolf@inbox.lv", role = c("aut", "cre")))
 Maintainer: Rudolfs Kregers <lordrudolf@inbox.lv>
@@ -16,8 +16,8 @@ Encoding: UTF-8
 LazyData: true
 URL: https://github.com/LordRudolf/loan
 BugReports: https://github.com/LordRudolf/loan/issues
-RoxygenNote: 7.2.0
+RoxygenNote: 7.3.1
 Depends: R (>= 3.5.0)
-Imports: dplyr
-Suggests: lubbridate, knitr, rmarkdown, testthat (>= 3.0.0)
+Imports: dplyr, magrittr
+Suggests: lubbridate, knitr, rmarkdown, testthat (>= 3.0.0), stringr, arules, rsample, caret, recipes, tidymodels
 VignetteBuilder: knitr

@@ -56,6 +56,7 @@ calculate_PSI_vector <- function(x, ...) {
   UseMethod('calculate_PSI_vector')
 }
 
+
 calculate_PSI_vector.loan_df <- function(df, the_var, interval = 'month', compare_against = 'prev_period', ...) {
   the_var <- df[[the_var]]
   #attributes_df <- generate_attribute_list(df)
