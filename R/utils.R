@@ -174,7 +174,7 @@ error_message <- function(vec) {
               ', if defined by a user, must be a vector with length equal to the number of rows in `df`, or a character length == 1 corresponding to column names in `df`'))
 }
   
-variables_availability_check <- function(df, required_vectors, ..., optional_vectors = NULL) {
+variables_availability_check <- function(df, required_vectors, ..., optional_vectors = NULL, detect_unused_cols = FALSE) {
   # Extract additional arguments
   args <- modifyList(list(...), as.list(parent.frame()), keep.null = TRUE)
   if(length(optional_vectors) >= 0) required_vectors <- unique(c(required_vectors, optional_vectors))
@@ -191,6 +191,7 @@ variables_availability_check <- function(df, required_vectors, ..., optional_vec
   
   # Initialize a list to store the final variables
   final_vars <- list()
+  used_col <- vector()
   
   # Loop through each required vector
   for (vec in required_vectors) {
@@ -227,8 +228,24 @@ variables_availability_check <- function(df, required_vectors, ..., optional_vec
       # If the vector is neither provided as an argument nor a column in df, throw an error
       stop(sprintf("The column `%s` hasn't been defined.", vec))
     }
+    
+    if(length(args[[vec]]) == 1) {
+      used_col <- c(used_col, args[[vec]])
+    }
+  }
+  used_col <- c(used_col, required_vectors, optional_vectors)
+  
+  if(detect_unused_cols) {
+    final_vars$unused_cols <- colnames(df)[!colnames(df) %in% used_col]
   }
   
   return(final_vars)
 }
 
+
+auroc <- function(score, bool) {
+  n1 <- sum(!bool)
+  n2 <- sum(bool)
+  U  <- sum(rank(score)[!bool]) - n1 * (n1 + 1) / 2
+  return(1 - U / n1 / n2)
+}
