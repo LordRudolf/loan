@@ -76,6 +76,34 @@ df <- loan_df(
 Frequently we are interested exploring on how separate variables contribute to loan defaults. Here, for example, let's see how the variable *age* performs for new loan issuance:
 
 ```{r age_univariate_exploration}
-get_group_stats(df[df$loan_seq_number == 1,], 'client_age')
+contingecny_table_stats <- get_group_stats(df[df$loan_seq_number == 1,], 'client_age')
+contingecny_table_stats
 ```
 
+What the function does it automatically splits variable into similar size bins (if the numeric variable been provided) and provides the essential statistics on for the each bin.
+
+We can have some customization as well. Say, we do not want to have 10 bins but instead 5. Also we do not care about the issuance rate (or it is irrelevant for our example). Plus, we do not want to have adjusted p values and we want to have weight of evidences calculated for each of the bins.
+
+``` {r univaraite_exploration_custimazied}
+get_group_stats(df[df$loan_seq_number == 1,], 'client_age', breaks = 5, table_cols_shown = c('outcomes'),
+                stats = c('fisher_p_val', 'woe'), p.adjust_func = NULL)
+```
+
+Let's return to the previous case where we created a new object named `contingecny_table_stats`. It can be easier to read and grasp the information if the its represented graphically. For this reason we are having a built in plotting functions. We can directly visualize the results using the simple `plot` command.
+
+``` {r plotting get_stats_table}
+plot(contingecny_table_stats)
+```
+
+The advantage of plotting summarized contingency tables is that it allows quickly distinguish and bins representing major trends and it also gives an option plotting factor level variables.However, for more nuance representation of continues plots would be more helpful. For this reason, we have function named `plot_univariate_smooth`. Let's use it to plot the relationships between the variable `client_age` and the bad rates. At once, let's compare how it performs for two different genders; and what proportion of the them are we accepting for loan disbursements.
+
+``` {r plot_univariate_smooth_demonstration}
+
+plot1 <- plot_univariate_smooth(df, 'client_age', 'gender', include_missing = TRUE, add_histogram = TRUE)
+plot2 <- plot_univariate_smooth(df, 'client_age', 'gender', type = 'acceptance_rate')
+
+gridExtra::grid.arrange(plot1, plot2, nrow = 2)
+
+```
+
+The upper plot shows the average bad rate. We see that younger clients tend to default, especially males. At the same time they also tend to get approved much less than older clients. 
