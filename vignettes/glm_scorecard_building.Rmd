@@ -1,0 +1,70 @@
+
+---
+title: "glm_scorecard_building"
+author: 'Rudolfs Kregers'
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{glm_scorecard_building}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+We have devout a separate section for logistic regression model training and validation as the **loans** package provides additional functions for the scorecard validation.
+
+We demonstration we are using *fintech* dataset for from the **loans** package and we are selecting only the new clients (where the loan sequence number is 1). 
+
+``` {r setup}
+library(loan)
+library(dplyr)
+
+data(fintech)
+
+predictor_cols <- colnames(fintech)[14:ncol(fintech)]
+
+#creating the binary class outcome
+fintech$class <- case_when(is.na(fintech$fpd) ~ NA, fintech$fpd > 15 ~ 'bad', TRUE ~ 'good')
+
+df <- loan_df(
+  fintech[fintech$loan_seq_number == 1, ],
+  define_aliases(
+    binary_outcome = list(
+      class = list(
+        GOOD = 'good',
+        BAD = 'bad'
+      )
+    ),
+    application_status = list(
+      application_status = list(
+        ACCEPTED = 'LOAN_ISSUED',
+        REJECTED = 'REJECTED',
+        CANCELLED = 'CANCELLED',
+        IN_PROCESS = c('PENDING', 'APPROVED')
+      )
+    ),
+    loan_status = list(
+        loan_status = list(
+          ACTIVE = c('PERFORMING', 'PAST_DUE'),
+          PAID = 'PAID_OFF',
+          DEFAULTED = 'DEFAULTED',
+          VOIDED = 'VOIDED'
+        )
+      ),
+    days_past_due_outcome = c('current_dpd', 'fpd'),
+    application_id = 'application_id',
+    loan_id = 'loan_id',
+    client_id = 'client_id',
+    application_created_timestamp = 'app_created_at',
+    other_timestamp_colnames = c('loan_paid_date'),
+    predictors_colnames = predictor_cols
+  )
+)
+
+```
+
