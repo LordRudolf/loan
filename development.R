@@ -5,71 +5,142 @@ fintech <- readRDS('C:/Users/Rudolfs/Desktop/grand_datasets/credit_Datasets/proc
 fintech$loan_id <- as.integer.integer64(fintech$loan_id)
 fintech$application_status <- ifelse(fintech$application_status == 'LOAN_ISSUED', 'ISSUED', fintech$application_status)
 
+source('R/contingency_tables.R')
 source('R/loandf.R')
-source('R/woe.R')
+source('R/stats.R')
+source('R/stats_functions.R')
 source('R/get_PSI.R')
 source('R/utils.R')
+source('R/cross_validation.R')
 
+library(loan)
 
-df <- fintech[1:200000, c(1:27, which(colnames(fintech) %in% c('fpd15',
-                                                               'open_loans',
-                                                               'nic_in_ext_blocklist',
-                                                               'marriage_status',
-                                                               'gross_salary',
-                                                               'education_level',
-                                                               'employment_category',
-                                                               'length_of_income',
-                                                               'utm_source',
-                                                               'loan_seq_number',
-                                                               'loans_repaid_30_days',
-                                                               'client_age',
-                                                               'apps_total_apps_installed',
-                                                               'juicy_antifraud_score',
-                                                               'seon_phone_score')))]
-
+data(fintech)
+df <- fintech
 
 df$city <- NULL
 df$district <- NULL
 df$contact_relationship <- NULL
 
 ## TO DO: create target variable with pre-defined classes
-df$class <- ifelse(df$fpd15 == 1, 'BAD', 'GOOD')
+df$class <- ifelse(df$fpd >= 15, 'BAD', 'GOOD')
 
-client_id <- 'client_id'
-
-x <- loan_df(df,
-             application_id = 'application_id',
-             loan_id = 'loan_id',
-             client_id = 'client_id',
-             application_created_at = 'app_created_at',
-             application_status = 'application_status',
-             loan_status = 'loan_status',
-             target = 'class',
-             data_downloaded_at = as.Date('2021-10-30'),
-             workflow = list()
-             )
-print(x)
-View(attributes(x))
 
 
 ###################### CONTINGENCY TABLES
-get_group_stats(x, 'client_age')
-get_group_stats(df, 'client_age')
-get_group_stats(x, 'client_age', breaks = 6)
-cont_table <- get_group_stats(x, 'employment_category', unique_val = 3)
 
-get_group_stats(x, 'client_age', breaks = 6, stats = 'fisher_p_val')
+## simple contingency table 
+produce_contingency_table(df$gender, df$class)
 
-get_fisher_p_val(cont_table)
-## TO DO: p-value, woe accepting other classes than cont_table
+## multiple classes target
+produce_contingency_table(df$gender, df$marriage_status)
+
+## with application statuses
+produce_contingency_table(df$gender, df$class, application_status = df$application_status) %>%
+  attributes()
+
+## with template provided: TO DO
+
+## many, many factors
+produce_contingency_table(df$bank_name, df$class)
+produce_contingency_table(df$bank_name, df$class, classes_limit = 10)
+
+## character variable
+produce_contingency_table(as.character(df$bank_name), df$class)
+
+## data frame
+produce_contingency_table(df, 'bank_name', 'class', classes_limit = 5)
+produce_contingency_table(df, 'gender', 'class', 'application_status')
+
+## numeric variable
+produce_contingency_table(df$client_age, df$class)
+produce_contingency_table(df$client_age, df$class, breaks = 10)
+
+## template provided
+c1 <- produce_contingency_table(df[df$loan_seq_number == 1, ], 'client_age', 'class')
+c2 <- produce_contingency_table(df[df$loan_seq_number > 1, ], 'client_age', 'class')
+c1; c2 #different the_var group ranges
+c3 <- produce_contingency_table(df[df$loan_seq_number > 1, ], 'client_age', 'class', template_mat = c1)
+c1; c3 #same intervals
+c4 <- produce_contingency_table(df[df$loan_seq_number == 1, ], 'client_age', 'class', template_mat = c1)
+c1; c4 #slight rounding differences. Shall be fixed but not the priority
+
+###################### STATS
+
+## provided as vectors
+get_group_stats(df$client_age, df$class, stats = 'fisher_p_val')
+get_group_stats(df$client_age, df$class, application_status = df$application_status, stats = 'fisher_p_val')
+
+## provided as data
+get_group_stats(df, 'client_age', binary_outcome = 'class', breaks = 10, stats = 'fisher_p_val')
+get_group_stats(df[!is.na(df$fpd), ], 'loan_seq_number', binary_outcome = 'class', breaks = 10, stats = 'fisher_p_val')
+
+get_group_stats(df[!is.na(df$fpd), ], 'client_age', binary_outcome = 'class', application_status = 'application_status',
+                breaks = 10, stats = 'fisher_p_val')
+
+## woe
+get_group_stats(df, 'client_age', binary_outcome = 'class', breaks = 10, stats = c('woe'))
+get_group_stats(df, 'client_age', binary_outcome = 'class', application_status = 'application_status', 
+                breaks = 10, stats = c('woe'))
+
+## fisher test
+get_group_stats(df, 'client_age', binary_outcome = 'class', breaks = 10, stats = c('woe', 'fisher_p_val'))
+get_group_stats(df, 'client_age', binary_outcome = 'class', breaks = 10, stats = c('woe', 'fisher_p_val'),
+                p.adjust_func = NULL)
+
+
+## plot
+get_group_stats(df, 'employment_category', binary_outcome = 'class', stats = c('woe', 'fisher_p_val')) %>%
+  plot()
+
+
+###################### PSI
+## low level
+cont_table_prev <- produce_contingency_table(df[as.Date(df$app_created_at) < as.Date('2023-01-01'), ], 'client_age', 'class', 'application_status')
+cont_table <- produce_contingency_table(df[as.Date(df$app_created_at) > as.Date('2023-06-01'), ], 'client_age', 'class', 'application_status', template_mat = cont_table_prev)
+
+calculate_PSI_table(cont_table_prev, cont_table)
+calculate_PSI_table(cont_table_prev, cont_table, param = 'applications_total')
+calculate_PSI_table(cont_table_prev, cont_table, param = 'count_CANCELLED')
+
+
+## higher level
+calculate_PSI(df$gender, df$class, 
+              time_split_base = as.Date(df$app_created_at) < as.Date('2023-01-01'),
+              time_split_comparison = as.Date(df$app_created_at) > as.Date('2023-06-01'))
+calculate_PSI(df$client_age, df$class, param_name = 'applications_total',
+              time_split_base = as.Date(df$app_created_at) < as.Date('2023-01-01'),
+              time_split_comparison = as.Date(df$app_created_at) > as.Date('2023-06-01')) #shalll trigger an R
+calculate_PSI(df$client_age, df$class, param_name = 'applications_total', application_status = df$application_status,
+              time_split_base = as.Date(df$app_created_at) < as.Date('2023-01-01'),
+              time_split_comparison = as.Date(df$app_created_at) > as.Date('2023-06-01')) 
+
+## df input
+calculate_PSI(df, 'gender', 'class',
+              time_split_base = as.Date(df$app_created_at) < as.Date('2023-01-01'),
+              time_split_comparison = as.Date(df$app_created_at) > as.Date('2023-06-01'))
+
+
+###################### dynamic_stability
+## data.frame
+ss <- get_dynamic_stats(df[df$loan_seq_number == 1, ], variables = c('client_age', 'gender', 'utm_source', 'gross_salary',
+                                                                     'major_email_domain', 'marriage_status'),
+                  time_splits = 'month',
+                  base_period = as.Date(df$app_created_at[df$loan_seq_number == 1]) < as.Date('2023-01-01'),
+                  application_created_at = 'app_created_at',
+                  target = 'class',
+                  application_status = NULL
+                )
+
+
 
 
 ###################### PSI
 get_PSI(x)
-get_PSI(x, variables = 'client_age')
+ get_PSI(x, variables = 'client_age')
 ## TO DO: lot's of customization
 
-
+ usethis::use_data()
 ###################### dynamic stability
 
 
@@ -85,3 +156,4 @@ get_PSI(x, variables = 'client_age')
 
 ######################
 ## TO DO: RETENTION RATES FROM one loan seq to next - loans issued and applications created
+ 

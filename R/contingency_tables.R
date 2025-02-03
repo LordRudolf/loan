@@ -12,6 +12,26 @@ produce_contingency_table <- function(x, ...) {
 #'   produce_contingency_table(the_var, binary_outcome, application_status)
 #' }
 
+produce_contingency_table.data.frame <- function(df, the_var, target, application_status = NULL, ...) {
+  
+  stopifnot(is.character(the_var))
+  stopifnot(length(the_var) == 1)
+  the_var <- df[[the_var]]
+  
+  stopifnot(is.character(target))
+  stopifnot(length(target) == 1)
+  target <- df[[target]]
+  
+  if(!is.null(application_status)) {
+    stopifnot(is.character(application_status))
+    stopifnot(length(application_status) == 1)
+    
+    application_status <- df[[application_status]]
+  }
+  
+  produce_contingency_table(the_var, target, application_status, ...)
+}
+
 #' @export
 produce_contingency_table.factor <- function(the_var, target, application_status = NULL, 
                                              bad_label = NULL, accept_label = NULL, 
@@ -20,6 +40,12 @@ produce_contingency_table.factor <- function(the_var, target, application_status
                                              infrequent_group_name = '_OTHER_',
                                              ...) {
   stopifnot(classes_limit >= 2)
+  
+  if(!is.null(attributes(the_var)$`discretized:breaks`)) { #indicates discretized numeric variable. 
+    cuts <- attributes(the_var)$`discretized:breaks`
+  } else {
+    cuts <- NULL
+  }
   
   cont_table <- table(the_var) %>% as.data.frame()
   
@@ -83,7 +109,8 @@ produce_contingency_table.factor <- function(the_var, target, application_status
       table = table(target, exclude = NULL),
       bad_label = bad_label
     ),
-    app_status_dict = app_status_attr
+    app_status_dict = app_status_attr,
+    cuts = cuts
   )
 
   return(cont_table)
@@ -98,12 +125,16 @@ produce_contingency_table.character <- function(the_var, target, ...) {
 #' @export
 produce_contingency_table.numeric <- function(the_var, target, application_status = NULL, template_mat = NULL, breaks = 5, ...) {
   if(!is.null(template_mat)) {
-    stopifnot(class(template_mat)[2] == 'loan_cont_table')
+    stopifnot('loan_cont_table' %in% class(template_mat))
 
     discretized_intervals <- template_mat$the_var
-    the_var_num <- discretize_values(the_var, breaks = breaks, discretized_intervals = discretized_intervals)
+    cuts <- attributes(template_mat)$cuts
+    the_var_num <- discretize_values(the_var, breaks = breaks, discretized_intervals = discretized_intervals, cuts = cuts)
+    
+  } else {
+    the_var_num <- discretize_values(the_var, breaks = breaks)
   }
-  the_var_num <- discretize_values(the_var, breaks = breaks)
+
   produce_contingency_table(the_var = the_var_num, target = target, application_status = application_status, ...)
 }
 
@@ -148,3 +179,4 @@ determine_accept_label <- function(target, application_status) {
   
   return(accept_label)
 }
+
