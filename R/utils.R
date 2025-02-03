@@ -40,28 +40,54 @@ parse_attributes_df <- function(df, col) {
 }
 
 
-discretize_values <- function(var, breaks, discretized_intervals = NULL) {
+discretize_values <- function(the_var, breaks, discretized_intervals = NULL, cuts = NULL) {
 
   if(!is.null(discretized_intervals)) {
     discretized_intervals <- as.character(discretized_intervals)
-    new_var <- rep(NA, length = length(var))
-
-    int_from <- stringr::str_extract(discretized_intervals[[i]], "-Inf|\\d+\\.*\\d*")
-    for(i in 2:length(discretized_intervals)) {
-      int_to <- stringr::str_extract(discretized_intervals[[i]], "-Inf|\\d+\\.*\\d*")
-      new_var[var >= int_from & var < int_to & !is.na(var)] <- discretized_intervals[[i-1]]
-      int_from <- int_to
+    
+    if(!is.null(cuts)) {
+      labels_no_nas <- discretized_intervals[discretized_intervals != 'value_NA']
+      new_var <- cut(the_var, breaks = cuts, include.lowest = TRUE, right = TRUE, labels = labels_no_nas)
+      levels(new_var) <- c(labels_no_nas, 'value_NA')
+      new_var[is.na(new_var)] <- 'value_NA'
+      
+      attributes(the_var)$`discretized:breaks` <- cuts
+      
+    } else {
+      new_var <- rep(NA, length = length(the_var))
+      
+      intervals <- stringr::str_extract(discretized_intervals, "-Inf|Inf|\\d+\\.*\\d*")
+      if(anyNA(intervals)) {
+        if(is.na(intervals[[length(intervals)]])) {
+          intervals[[length(intervals)]] <- Inf
+        } else {
+          stop('Incorrect invervals in the provided template.')
+        }
+      }
+      
+      int_from <- intervals[[1]]
+      
+      for(i in 2:length(discretized_intervals)) {
+        int_to <- intervals[[i]]
+        new_var[the_var >= int_from & the_var < int_to & !is.na(the_var)] <- discretized_intervals[[i-1]]
+        int_from <- int_to
+      }
+      if(anyNA(the_var)) {
+        new_var[is.na(the_var)] <- 'value_NA'
+      }
     }
-    new_var[is.na(var)] <- 'value_NA'
-    var <- as.factor(new_var, levels = discretized_intervals)
+    
+    the_var <- factor(new_var, levels = discretized_intervals)
+    
   } else {
-    var <- arules::discretize(var, breaks = breaks, infinity = TRUE)
-    levels(var) <- c(levels(var), 'value_NA')
-    var[is.na(var)] <- 'value_NA'
+    the_var <- arules::discretize(the_var, breaks = breaks, infinity = TRUE)
+    levels(the_var) <- c(levels(the_var), 'value_NA')
+    the_var[is.na(the_var)] <- 'value_NA'
   }
 
-  return(var)
+  return(the_var)
 }
+
 
 
 # 

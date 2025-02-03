@@ -112,12 +112,12 @@ get_group_stats.data.frame <- function(df, varname,
   }
   
   ## Average score
-  if('avg_score' %in% stats) {
-    cont_table$avg_score <- NA
-    for(i in 1:nrow(cont_table)) {
-      cont_table$avg_score[[i]] <- mean(score[the_var == cont_table$the_var[[i]]], na.rm = TRUE)
-    }
-  }
+  # if('avg_score' %in% stats) {
+  #   cont_table$avg_score <- NA
+  #   for(i in 1:nrow(cont_table)) {
+  #     cont_table$avg_score[[i]] <- mean(score[the_var == cont_table$the_var[[i]]], na.rm = TRUE)
+  #   }
+  # }
   
   #######################
   ## additional table visualizations
@@ -164,33 +164,38 @@ get_group_stats.data.frame <- function(df, varname,
 
 ## TO DO: get_WOE if var and target are vectors, and get_WOE when df is loan_df class
 
-plot.loan_group_stats <- function(cont_table) {
+plot.loan_group_stats <- function(cont_table, plots_to_make = 'all') {
   
   cont_info <- attributes(cont_table)$cont_table_info
   
-  if(cont_info$stats %in% c('fisher_p_val')) {
-    stats_significance_indicator <- cont_info$stats[cont_info$stats %in% c('fisher_p_val')][[1]]
-  } else {
-    stats_significance_indicator <- NA
+  if(any(plots_to_make == 'all')) {
+    plots_to_make <- character()
+    
+    if('applications' %in% cont_info$table_cols_shown) {
+      plots_to_make <- c(plots_to_make, 'issuance_rate')
+    }
+    if('outcomes' %in% cont_info$table_cols_shown) {
+      plots_to_make <- c(plots_to_make, 'bad_rate')
+    }
+    
+    for(i in 1:length(cont_info$stats)) {
+      plots_to_make <- c(plots_to_make, cont_info$stats[[i]])
+    }
   }
+  plots_to_make <- unique(plots_to_make)
   
+  if(length(plots_to_make) < 1) stop('No available plots for the selected stats') 
   
+  long_data <- tidyr::pivot_longer(cont_table, cols = c('issuance_rate', 'bad_rate', 'woe', 'fisher_p_val'), names_to = 'variable')
   
-  if(all(cont_info$table_cols_shown %in% c('applications', 'outcomes'))) {
-    ## Plot the bad rates and acceptance rates
-    
-    long_data <- tidyr::pivot_longer(cont_table, cols = c('issuance_rate', 'bad_rate'), names_to = 'variable')
-    
-    g <- ggplot2::ggplot(long_data, ggplot2::aes(x = the_var, y = value, group = variable, color = variable)) +
-      ggplot2::geom_line() +
-      ggplot2::theme_minimal()
-    
-  } else {
-    stop('Currently the group stats contengency table plot supports only the issuance rates and the binary outcome quality indicators.
-         Your table provided does not contain both of these.')
-  }
+  g <- ggplot2::ggplot(long_data, ggplot2::aes(x = the_var, y = value, group = variable, color = variable)) +
+    ggplot2::geom_point() +
+    ggplot2::geom_line() +
+    ggplot2::facet_wrap( ~variable,  scales="free", ncol = 1) +
+    ggplot2::theme_minimal()
   
-  ## TO DO: plot other type of plots and improve this one
   
   return(g)
 }
+
+
