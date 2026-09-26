@@ -1,4 +1,4 @@
-autopreproc <- function(target, X, method) {
+auto_recipe <- function(target, X, method) {
   
   ## TO DO: data type checks
   

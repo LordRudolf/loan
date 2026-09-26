@@ -1,57 +1,62 @@
-get_dynamic_stats <- function(x, ...) {
-  UseMethod('get_dynamic_stats')
+dynamic_stats <- function(x, ...) {
+  UseMethod('dynamic_stats')
 }
 
 
-get_dynamic_stats.data.frame <- function(df, variables, application_created_at, time_splits, 
-                                         stats_funcs = c(calculate_PSI),
+dynamic_stats.data.frame <- function(x, variables = NULL, application_created_at = NULL, time_splits,
+                                         stats_funcs = list(PSI = psi),
                                          compare_against = 'base_period',
-                                         base_period = NULL, 
-                                         target = NULL,
-                                         application_status = NULL, 
+                                         base_period = NULL,
+                                         outcome = NULL,
+                                         application_status = NULL,
                                          ...) {
-  
-  stopifnot(is.character(variables))
-  stopifnot(is.character(application_created_at) && length(application_created_at) == 1)
-  
-  variable_list <- list()
-  for(var in variables) {
-    if(is.null(df[[var]])) stop(paste0('Variable ', var, ' has not been found in the dataset provided'))
-    variable_list[[var]] <- df[[var]]
-  }
-  
-  application_created_at <- df[[application_created_at]]
-  
-  if(!is.null(target)) {
-    stopifnot(is.character(target) && length(target) == 1)
-    target <- df[[target]]
-  }
-  if(!is.null(application_status)) {
-    stopifnot(is.character(application_status) && length(application_status) == 1)
-    application_status <- df[[application_status]]
-  }
-  
-  get_dynamic_stats(variable_list = variable_list, 
+
+  ## on a loan_tbl, `variables` defaults to the declared predictors
+  if(is.null(variables)) variables <- loan_roles(x)$predictors
+
+  r <- resolve_roles(x,
+                     variables              = variables,
+                     application_created_at = application_created_at,
+                     outcome                = outcome,
+                     application_status     = application_status,
+                     .required = c('variables', 'application_created_at'),
+                     .multi    = 'variables')
+
+  variable_list          <- r$variables
+  application_created_at <- r$application_created_at
+  outcome                <- check_outcome(r$outcome, attr(r, 'maps')$outcome,
+                                          types = c('binary', 'multiclass'))
+  application_status     <- r$application_status
+
+  dynamic_stats(variable_list,
                     application_created_at = application_created_at, 
                     time_splits = time_splits,
                     compare_against = compare_against,
                     base_period = base_period,
                     stats_funcs = stats_funcs,
-                    target = target,
+                    outcome = outcome,
                     application_status = application_status,
+                    status_map = attr(r, 'maps')$application_status,
                     ...)
 }
 
-get_dynamic_stats.list <- function(variable_list, 
+dynamic_stats.list <- function(x,
                                    application_created_at,
                                    time_splits = 'month',
                                    compare_against = 'base_period',
                                    base_period = NULL,
-                                   stats_funcs = list(PSI = calculate_PSI),
-                                   target = NULL, application_status = NULL,
+                                   stats_funcs = list(PSI = psi),
+                                   outcome = NULL, application_status = NULL,
                                    ... ){
-  
-  
+
+  variable_list <- x
+  ## canonicalise once, so the many psi() calls below do not each re-infer it
+  if(!is.null(outcome)) outcome <- check_outcome(outcome, types = c('binary', 'multiclass'))
+  if(is.null(names(stats_funcs)) || any(names(stats_funcs) == '')) {
+    stop('`stats_funcs` must be a named list of functions, e.g. `list(PSI = psi)`; ',
+         'the names label the results.', call. = FALSE)
+  }
+
   ## Detecting time splits
   application_created_at <- as.Date(application_created_at)
   
@@ -123,7 +128,7 @@ get_dynamic_stats.list <- function(variable_list,
     dim = c(
       length(variable_list),
       length(end_splits),
-      length(length(stats_funcs))
+      length(stats_funcs)
     ),
     dimnames = list(
       variable = names(variable_list),
@@ -133,15 +138,15 @@ get_dynamic_stats.list <- function(variable_list,
   )
   
   for(l in 1:dim(stats_array)[[3]]) {
-    print(paste0('Gathering ', names(stats_funcs)[[l]], ' statistics.'))
+    message('Gathering ', names(stats_funcs)[[l]], ' statistics.')
     
     for(i in 1:dim(stats_array)[[1]]) {
-      the_var <- variable_list[[i]]
-      
+      variable <- variable_list[[i]]
+
       if(compare_against == 'base_period') {
-        res_vector <- time_split_loop_base_period(the_var, end_splits, stats_funcs[[l]], target = target, application_status = application_status, ...)
+        res_vector <- time_split_loop_base_period(variable, end_splits, stats_funcs[[l]], outcome = outcome, application_status = application_status, ...)
       } else if (compare_against == 'prev_period') {
-        res_vector <- time_split_loop_prev_period(the_var, end_splits, stats_funcs[[l]], target = target, application_status = application_status, ...)
+        res_vector <- time_split_loop_prev_period(variable, end_splits, stats_funcs[[l]], outcome = outcome, application_status = application_status, ...)
       }
       
       stats_array[i, ,l] <- res_vector
@@ -151,22 +156,22 @@ get_dynamic_stats.list <- function(variable_list,
   return(stats_array)
 }
 
-time_split_loop_base_period <- function(the_var, end_splits, func, target, application_status, ...) {
+time_split_loop_base_period <- function(variable, end_splits, func, outcome, application_status, ...) {
   
   res_vector <- rep(NA, length(end_splits))
   
   base_index <- end_splits[[1]]
   for(i in 2:length(res_vector)) {
-    res_vector[[i]] <- func(the_var, target = target, application_status = application_status, time_split_base = base_index, time_split_comparison = end_splits[[i]], ...)
+    res_vector[[i]] <- func(variable, outcome = outcome, application_status = application_status, time_split_base = base_index, time_split_comparison = end_splits[[i]], ...)
   }
   
   return(res_vector)
 }
 
-time_split_loop_prev_period <- function(the_var, end_splits, func, target, application_status, ...) {
-  
-  if(is.numeric(the_var)) {
-    the_var <- make_cont_table_var(the_var, ...)
+time_split_loop_prev_period <- function(variable, end_splits, func, outcome, application_status, ...) {
+
+  if(is.numeric(variable)) {
+    variable <- bin_variable(variable, ...)
   }
   
   res_vector <- rep(NA, length(end_splits))
@@ -175,7 +180,7 @@ time_split_loop_prev_period <- function(the_var, end_splits, func, target, appli
   
   for(i in 2:length(res_vector)) {
     new_indx <- end_splits[[i]]
-    res_vector[[i]] <- func(the_var, target = target, application_status = application_status, time_split_base = base_index, time_split_comparison = new_indx, ...)
+    res_vector[[i]] <- func(variable, outcome = outcome, application_status = application_status, time_split_base = base_index, time_split_comparison = new_indx, ...)
     base_index <- new_indx
   }
   
