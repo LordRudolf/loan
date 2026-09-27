@@ -1,0 +1,22 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+inst/doc
+/doc/
+/Meta/
+.rtmp/
+# development material -- kept locally, not part of the package or the repository
+AGENTS.md
+TODO.md
+development.R
+dev/
+loan.Rproj
+dataset_preps.R
+private_dev.R
+feature_evaluation_presentation.R
+fintech_prep.R
+chap2oneypd.xlsx
+chap3ltpdpanel.xlsx
+dcr.csv
+.claude/

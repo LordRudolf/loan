@@ -1,5 +1,9 @@
 
-create_cv_folds <- function(target, X, resample_splits = NULL, resample_method = 'auto', application_created_at = NULL, 
+#' Cross-validation folds
+#'
+#' Experimental: being redesigned.
+#' @keywords internal
+cv_folds <- function(target, X, resample_splits = NULL, resample_method = 'auto', application_created_at = NULL, 
                             rounded_vintages = TRUE, ...) {
   
   #commenting out this part as different ordering will mess up the vector values
@@ -17,7 +21,7 @@ create_cv_folds <- function(target, X, resample_splits = NULL, resample_method =
     ## TO DO: use more scientific principles for choosing the optimal resampling method
     
     resample_method <- 'bootstrap'
-    resample_splits <- calculate_resample_splits(computation_load, n_minority_class)
+    resample_splits <- suggest_resample_splits(computation_load, n_minority_class)
     
     if(computation_load > 5*10^8) resample_method <- 'validation_time_split'
   }
@@ -79,38 +83,38 @@ create_cv_folds <- function(target, X, resample_splits = NULL, resample_method =
   
   if(resample_method == 'cv') {
     if(is.null(resample_splits)) {
-      resample_splits <- calculate_resample_splits(computation_load, n_minority_class)
+      resample_splits <- suggest_resample_splits(computation_load, n_minority_class)
     }
-    cv_folds <-  rsample::vfold_cv(X, v = resample_splits, ...) %>% pool_in_id()
+    cv_folds <-  rsample::vfold_cv(X, v = resample_splits, ...) %>% extract_fold_indices()
     
   } else if(resample_method == 'repeatedcv') {
     if(!is.null(resample_splits) && !exists('repeats')) {
-      n <- calculate_resample_splits(computation_load, n_minority_class)
+      n <- suggest_resample_splits(computation_load, n_minority_class)
       repeats <- max(min(ceiling(n / resample_splits), 50), 3)
     }
     if(is.null(resample_splits)) {
-      n <- calculate_resample_splits(computation_load, n_minority_class)
+      n <- suggest_resample_splits(computation_load, n_minority_class)
       if(exists('repeats')) {
         resample_splits <- max(min(ceiling(n / repeats), 50), 3)
       } else {
         repeats <- min(floor(sqrt(n)) + 1,  50)
         resample_splits <- max(min(ceiling(n / repeats), 50), 3)
       }
-      cv_folds <- rsample::vfold_cv(X, v = resample_splits, repeats = repeats, ...) %>% pool_in_id()
+      cv_folds <- rsample::vfold_cv(X, v = resample_splits, repeats = repeats, ...) %>% extract_fold_indices()
     }
     
   } else if (resample_method == 'validation') {
-    cv_folds <- rsample::validation_split(X, ...) %>% pool_in_id
+    cv_folds <- rsample::validation_split(X, ...) %>% extract_fold_indices
     
   } else if (resample_method == 'validation_time_split') {
-    cv_folds <- rsample::validation_time_split(X, ...) %>% pool_in_id()
+    cv_folds <- rsample::validation_time_split(X, ...) %>% extract_fold_indices()
     
   } else if (resample_method == 'bootstrap') {
     if(is.null(resample_splits)) {
-      resample_splits <- calculate_resample_splits(computation_load, n_minority_class)
+      resample_splits <- suggest_resample_splits(computation_load, n_minority_class)
     }
     
-    cv_folds <- rsample::bootstraps(X, times = resample_splits, ...) %>% pool_in_id()
+    cv_folds <- rsample::bootstraps(X, times = resample_splits, ...) %>% extract_fold_indices()
   }
   
   if(length(names(cv_folds)) == 0) {
@@ -120,7 +124,7 @@ create_cv_folds <- function(target, X, resample_splits = NULL, resample_method =
   return(cv_folds)
 }
 
-calculate_resample_splits <- function(computation_load, n_minority_class) {
+suggest_resample_splits <- function(computation_load, n_minority_class) {
   resample_splits <- ceiling(30/computation_load^0.1)
   resample_splits <- min(resample_splits, n_minority_class / 100)
   resample_splits <- max(resample_splits, 4)
@@ -128,7 +132,7 @@ calculate_resample_splits <- function(computation_load, n_minority_class) {
   return(resample_splits)
 }
 
-pool_in_id <- function(resample_splits) {
+extract_fold_indices <- function(resample_splits) {
   stopifnot(any(class(resample_splits) == 'rset'))
   
   lapply(resample_splits$splits, function(x) x$in_id)

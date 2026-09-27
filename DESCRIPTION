@@ -11,13 +11,16 @@ Description: This package offers a comprehensive set of tools for loan portfolio
     robust methods for underwriting workflow analysis. The package facilitates the 
     development of scorecards through integration with R base, caret, and tidymodels 
     frameworks, catering to a wide range of use cases in credit risk assessment.
-License: GPL-3 | file LICENSE
+License: GPL-3
 Encoding: UTF-8
 LazyData: true
+LazyDataCompression: xz
 URL: https://github.com/LordRudolf/loan
 BugReports: https://github.com/LordRudolf/loan/issues
-RoxygenNote: 7.3.1
 Depends: R (>= 3.5.0)
-Imports: dplyr, magrittr
-Suggests: lubbridate, knitr, rmarkdown, testthat (>= 3.0.0), stringr, arules, rsample, caret, recipes, tidymodels
+Imports: dplyr, magrittr, tibble, stringr, arules, ggplot2, tidyr, lubridate
+Suggests: knitr, rmarkdown, testthat (>= 3.0.0), rsample, caret, recipes,
+    tidymodels, scorecard, rlang, reshape2, ggrepel, gridExtra, ranger
 VignetteBuilder: knitr
+Config/roxygen2/version: 8.1.0
+Config/testthat/edition: 3

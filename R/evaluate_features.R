@@ -1,5 +1,9 @@
 
-evaluate_features <- function(df, 
+#' Evaluate features
+#'
+#' Experimental: being redesigned.
+#' @keywords internal
+evaluate_features <- function(data, 
                               new_features, 
                               cv_folds = NA,
                               method = NA,
@@ -8,34 +12,34 @@ evaluate_features <- function(df,
   
   ## validating availability of dependent and independent variables
   if(!is.na(target)) {
-    if(any(class(df) == 'loan')) print('Warning: using the user-defined target variable')
+    if(any(class(data) == 'loan')) print('Warning: using the user-defined target variable')
     
     if(length(target) == 1 & typeof(target) == 'character') {
-      count_occurrences <- sum(target == colnames(df))
+      count_occurrences <- sum(target == colnames(data))
       
-      if(count_occurrences < 0) stop('The name of the dependent variable has not been found in the dataset `df`')
+      if(count_occurrences < 0) stop('The name of the dependent variable has not been found in the dataset `data`')
       if(count_occurrences > 1) stop(paste0('Has been found multiple columns named ', target, '. There
                                             can be only one dependent variable'))
-      X <- df
+      X <- data
       X[[target]] <- NULL
-      target <- df[[target]]
+      target <- data[[target]]
       #X <- X[, colnames(X) %in% attributes(X)$predictors]
-    } else if (length(target) == nrow(df)) {
-      X <- df
+    } else if (length(target) == nrow(data)) {
+      X <- data
     } else {
-      stop('The target variable shall be length 1 or equal to the observations in the dataset `df`')
+      stop('The target variable shall be length 1 or equal to the observations in the dataset `data`')
     }
     
     ## TO DO: check the type of the dependent variable
     ## TO DO: different evaluation stats for different types
     
-  } else if((any(class(df) == 'loan')))  {
-    target <- df$target
-    X <- df[, attributes(df)$predictors] ## TO DO: select only features
+  } else if((any(class(data) == 'loan')))  {
+    target <- data$target
+    X <- data[, attributes(data)$predictors] ## TO DO: select only features
   } else {
-    stop('Provide name or vector of the dependent variable `y`, or convert the dataset `df` to class `loan`')
+    stop('Provide name or vector of the dependent variable `y`, or convert the dataset `data` to class `loan`')
   }
-  dfx <- as_tibble(X)######### !!!!!!! Change this once alias var problem has been fixed
+  dfx <- tibble::as_tibble(X)######### !!!!!!! Change this once alias var problem has been fixed
   dfx$target <- assign('target', target)
   dfx <- dfx[!is.na(dfx$target), ] #TO DO: keep missing values for the reject inference analysis
   
@@ -57,7 +61,7 @@ evaluate_features <- function(df,
   ## validating cv folds
   if(is.na(cv_folds)) {
     
-    cv_folds <- create_cv_folds(dfx$target, dfx[, colnames(dfx) != 'target'])
+    cv_folds <- cv_folds(dfx$target, dfx[, colnames(dfx) != 'target'])
     
     #folds_vector <- unlist(cv_folds, recursive = FALSE) %>% sort() %>% names()
     #folds_vector <- substr(folds_vector, 1, 5)
@@ -83,28 +87,22 @@ evaluate_features <- function(df,
 
   for(i in 1:length(train_set_list)) {
     
-    rec <- autopreproc(dfx$target, dfx[, train_set_list[[i]]], method = method)
+    rec <- auto_recipe(dfx$target, dfx[, train_set_list[[i]]], method = method)
     
     all_obs <- (matrix(NA, nrow(dfx), length(cv_folds)))
     
     variable_importances_temp <- data.frame(variable = colnames(dfx)[-ncol(dfx)])[, 1, drop=FALSE]
     for(f in 1:length(cv_folds)) {
-      test_samp <<- dfx[-cv_folds[[f]], ]
-      
-      train_samp <<- dfx[cv_folds[[f]], ]
-      
-      model <- train_model(rec, train_samp, method = method, ml_framework = ml_framework)
-      print('x1')
-     
+      test_samp <- dfx[-cv_folds[[f]], ]
+
+      train_samp <- dfx[cv_folds[[f]], ]
+
+      model <- fit_model(rec, train_samp, method = method, ml_framework = ml_framework)
+
       pred <- predict(model, test_samp, type = 'prob')$BAD
-      print('x2')
       model_stats[i,f] <- auroc(pred, test_samp$target == 'BAD')
-      print('x3')
-      print(model_stats)
-      print('x4')
       all_obs[-cv_folds[[f]], f] <- pred ##error here
-      print('x5')
-      
+
       imps <- caret::varImp(model)$importance 
       imps$variable <- rownames(imps)
       variable_importances_temp <- merge(variable_importances_temp, imps, by = 'variable', all.x = TRUE)
@@ -130,7 +128,11 @@ evaluate_features <- function(df,
 }
 
 
-visualize_paired_u_test <- function(output) {
+#' Plot paired U test
+#'
+#' Experimental: being redesigned.
+#' @keywords internal
+plot_paired_u_test <- function(output) {
   model_stats <- output$model_stats
   model_stats$variable_set <- rownames(model_stats)
   var_order <- model_stats$variable_set
@@ -149,23 +151,27 @@ visualize_paired_u_test <- function(output) {
                    model_stats$AUC[model_stats$variable_set != 'vanilla'],
                    paired  = TRUE)$p.value %>% round(4)
   
-  ggplot(model_stats, aes(x = variable_set, y = AUC, group = cv_fold)) +
-    geom_point() +
-    geom_line() +
-    stat_summary(inherit.aes = F,aes(variable_set,AUC),
-                 geom = "point", fun = "median", col = "red", 
+  ggplot2::ggplot(model_stats, ggplot2::aes(x = variable_set, y = AUC, group = cv_fold)) +
+    ggplot2::geom_point() +
+    ggplot2::geom_line() +
+    ggplot2::stat_summary(inherit.aes = F, ggplot2::aes(variable_set, AUC),
+                 geom = "point", fun = "median", col = "red",
                  size = 3, shape = 24,fill = "red"
     ) +
-    stat_summary(inherit.aes = F,aes(variable_set,AUC),
-                 geom = "point", fun = "mean", col = "#FF9999", 
+    ggplot2::stat_summary(inherit.aes = F, ggplot2::aes(variable_set, AUC),
+                 geom = "point", fun = "mean", col = "#FF9999",
                  size = 3, shape = 20,fill = "#FF9999"
     ) +
-    annotate("text", x = 1.5, y = max(model_stats$AUC)+sd(model_stats$AUC)/4 , label = paste0('Paired t-test P-Value: ', pval_t, '\n',
+    ggplot2::annotate("text", x = 1.5, y = max(model_stats$AUC)+sd(model_stats$AUC)/4 , label = paste0('Paired t-test P-Value: ', pval_t, '\n',
                                                      'Paired wilcox-test P-Value: ', pval_w)) +
-    theme_minimal()
+    ggplot2::theme_minimal()
 }
 
-visualize_variable_importance <- function(output) {
+#' Plot variable importance
+#'
+#' Experimental: being redesigned.
+#' @keywords internal
+plot_variable_importance <- function(output) {
   variable_importances <- output$variable_importances
   variable_importances$spec_vars <- is.na(variable_importances$vanilla)
   variable_importances$var_global_importance <- apply(variable_importances[, -1], 1, max, na.rm = TRUE)
@@ -178,16 +184,20 @@ visualize_variable_importance <- function(output) {
   imps$labels <- ifelse(imps$variable_set == 'vanilla', imps$variable, ' ')
   imps$spec_labels <- ifelse(imps$spec_vars, imps$variable, '')
   
-  ggplot(imps, aes(x = variable_set, y = variable_importance, group = variable,
+  ggplot2::ggplot(imps, ggplot2::aes(x = variable_set, y = variable_importance, group = variable,
                    label = labels)) +
-    geom_point() +
+    ggplot2::geom_point() +
     ggrepel::geom_label_repel() +
-    ggrepel::geom_label_repel(aes(label = spec_labels), color = 'red') +
-    geom_line() +
-    theme_minimal()
+    ggrepel::geom_label_repel(ggplot2::aes(label = spec_labels), color = 'red') +
+    ggplot2::geom_line() +
+    ggplot2::theme_minimal()
 }
 
-visualize_worth <- function(output, worth_good = 100, worth_bad = -100, variable_set = NA) {
+#' Plot profit curve
+#'
+#' Experimental: being redesigned.
+#' @keywords internal
+plot_profit_curve <- function(output, worth_good = 100, worth_bad = -100, variable_set = NA) {
   cv_preds <- output$cv_preds
   
   if(is.na(variable_set)) {
@@ -226,17 +236,17 @@ visualize_worth <- function(output, worth_good = 100, worth_bad = -100, variable
   
   profit_compare$bad_rate_increase <- profit_compare$bad_rate - profit_compare$bad_rate_vanilla
   
-  ggplot(profit_compare[profit_compare$number_of_accepted_cases > 10, ], 
-         aes(x = acceptance_rate, y = profit_increase_per_application)) +
-    geom_smooth(method="loess", span=1) + ##TO DO: use confidence bands instead of interval
-    geom_hline(yintercept = 0, color = 'red', size = 1) +
-    geom_jitter(alpha = 0.15) +
-    theme_minimal()
+  ggplot2::ggplot(profit_compare[profit_compare$number_of_accepted_cases > 10, ],
+         ggplot2::aes(x = acceptance_rate, y = profit_increase_per_application)) +
+    ggplot2::geom_smooth(method="loess", span=1) + ##TO DO: use confidence bands instead of interval
+    ggplot2::geom_hline(yintercept = 0, color = 'red', size = 1) +
+    ggplot2::geom_jitter(alpha = 0.15) +
+    ggplot2::theme_minimal()
 }
 
 
 #GermanCredit$Class <- ifelse(GermanCredit$Class == 'Bad', 'BAD', 'GOOD')
 #output <- evaluate_features(GermanCredit, new_features = 'Amount', target = 'Class')
-#visualize_paired_u_test(output)
-#visualize_variable_importance(output)
-#visualize_worth(output, 10, -25)
+#plot_paired_u_test(output)
+#plot_variable_importance(output)
+#plot_profit_curve(output, 10, -25)

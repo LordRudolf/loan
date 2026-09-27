@@ -1,6 +1,8 @@
 #' Weight-of-Evidence (WOE) Binning Recipe Step Using scorecard Package
 #'
-#' `step_woe2` creates a specification of a recipe step that converts numeric
+#' Experimental: being redesigned.
+#'
+#' `step_woebin` creates a specification of a recipe step that converts numeric
 #' predictors into weight-of-evidence (WOE) values using functions provided by the
 #' **scorecard** package (i.e. `scorecard::woebin` and `scorecard::woebin_ply`).
 #' The step can either replace the original numeric columns with their WOE-transformed
@@ -20,6 +22,12 @@
 #' @param new_vars A character vector of new variable names (when `replace = FALSE`). This is `NULL` until computed by `prep()`.
 #' @param skip A logical. Should the step be skipped when the recipe is baked by `bake.recipe`? Defaults to `FALSE`.
 #' @param id A unique character string to identify the step.
+#' @param x,object A `step_woebin` step, for the `prep()` / `print()` and the
+#'   `bake()` methods.
+#' @param training The training data, for `prep()`.
+#' @param info Variable information, supplied by recipes to `prep()`.
+#' @param new_data The data the trained step is applied to, for `bake()`.
+#' @param width Print width.
 #'
 #' @details
 #' This step uses functions from the **scorecard** package (namely, `scorecard::woebin` and
@@ -57,28 +65,29 @@
 #' test_data  <- data_sim[-train_idx, ]
 #'
 #' # Example 1: Replace original numeric columns with WOE values (using scorecard functions)
-#' rec_woe2_replace <- recipe(creditability ~ ., data = train_data) %>%
-#'   step_woe2(all_numeric(), target = creditability, positive = Good, replace = TRUE) %>%
+#' rec_woebin_replace <- recipe(creditability ~ ., data = train_data) %>%
+#'   step_woebin(all_numeric(), target = creditability, positive = Good, replace = TRUE) %>%
 #'   step_dummy(all_nominal(), -all_outcomes()) %>%
 #'   step_zv(all_predictors())
 #'
-#' rec_woe2_replace <- prep(rec_woe2_replace, training = train_data)
-#' baked_replace <- bake(rec_woe2_replace, new_data = test_data)
+#' rec_woebin_replace <- prep(rec_woebin_replace, training = train_data)
+#' baked_replace <- bake(rec_woebin_replace, new_data = test_data)
 #'
 #' # Example 2: Append new WOE columns while keeping the original numeric columns.
-#' rec_woe2_newcols <- recipe(creditability ~ ., data = train_data) %>%
-#'   step_woe2(all_numeric(), target = creditability, positive = Good, replace = FALSE) %>%
+#' rec_woebin_newcols <- recipe(creditability ~ ., data = train_data) %>%
+#'   step_woebin(all_numeric(), target = creditability, positive = Good, replace = FALSE) %>%
 #'   step_dummy(all_nominal(), -all_outcomes()) %>%
 #'   step_zv(all_predictors())
 #'
-#' rec_woe2_newcols <- prep(rec_woe2_newcols, training = train_data)
-#' baked_newcols <- bake(rec_woe2_newcols, new_data = test_data)
+#' rec_woebin_newcols <- prep(rec_woebin_newcols, training = train_data)
+#' baked_newcols <- bake(rec_woebin_newcols, new_data = test_data)
 #' }
 #'
 #' @seealso [recipes::step()], [scorecard::woebin()], [scorecard::woebin_ply()]
+#' @keywords internal
 #'
 #' @export
-step_woe2 <- function(recipe, ..., 
+step_woebin <- function(recipe, ..., 
                       target, 
                       positive, 
                       replace = TRUE, 
@@ -89,13 +98,13 @@ step_woe2 <- function(recipe, ...,
                       columns = NULL, 
                       new_vars = NULL, 
                       skip = FALSE,
-                      id = recipes::rand_id("woe2")) {
+                      id = recipes::rand_id("woebin")) {
   # Capture target and positive as strings using rlang
   target_name <- rlang::as_name(rlang::enquo(target))
   positive_name <- rlang::as_name(rlang::enquo(positive))
   
   recipes::add_step(recipe,
-                    step_woe2_new(
+                    step_woebin_new(
                       terms = rlang::enquos(...),
                       target = target_name,
                       positive = positive_name,
@@ -112,9 +121,9 @@ step_woe2 <- function(recipe, ...,
   )
 }
 
-#' @rdname step_woe2
+#' @rdname step_woebin
 #' @export
-prep.step_woe2 <- function(x, training, info = NULL, ...) {
+prep.step_woebin <- function(x, training, info = NULL, ...) {
   col_names <- recipes::recipes_eval_select(x$terms, info = info, data = training)
   bins <- scorecard::woebin(training, y = x$target, x = col_names, positive = x$positive)
   bins <- lapply(bins, function(b) {
@@ -128,7 +137,7 @@ prep.step_woe2 <- function(x, training, info = NULL, ...) {
                                role = rep(x$new_role, length(new_vars)))
     info <- dplyr::bind_rows(info, new_info)
   }
-  step_woe2_new(
+  step_woebin_new(
     terms = x$terms,
     target = x$target,
     positive = x$positive,
@@ -144,9 +153,9 @@ prep.step_woe2 <- function(x, training, info = NULL, ...) {
   )
 }
 
-#' @rdname step_woe2
+#' @rdname step_woebin
 #' @export
-bake.step_woe2 <- function(object, new_data, ...) {
+bake.step_woebin <- function(object, new_data, ...) {
   predictors <- intersect(object$columns, names(new_data))
   bins_fixed <- object$bins[names(object$bins) %in% predictors]
   bins_fixed <- lapply(bins_fixed, function(b) {
@@ -157,18 +166,18 @@ bake.step_woe2 <- function(object, new_data, ...) {
   new_data
 }
 
-#' @rdname step_woe2
+#' @rdname step_woebin
 #' @export
-print.step_woe2 <- function(x, width = max(20, options()$width - 30), ...) {
+print.step_woebin <- function(x, width = max(20, options()$width - 30), ...) {
   cat("WOE binning using scorecard functions for ")
   recipes::printer(x$columns, x$terms, x$trained, width = width)
   invisible(x)
 }
 
-# Internal constructor for step_woe2
-step_woe2_new <- function(terms, target, positive, replace, new_role, role, trained, bins, columns, new_vars, skip, id) {
+# Internal constructor for step_woebin
+step_woebin_new <- function(terms, target, positive, replace, new_role, role, trained, bins, columns, new_vars, skip, id) {
   recipes::step(
-    subclass = "woe2",
+    subclass = "woebin",
     terms = terms,
     target = target,
     positive = positive,

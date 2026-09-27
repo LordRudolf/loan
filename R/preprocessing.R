@@ -1,4 +1,8 @@
-autopreproc <- function(target, X, method) {
+#' Automatic preprocessing recipe
+#'
+#' Experimental: being redesigned.
+#' @keywords internal
+auto_recipe <- function(target, X, method) {
   
   ## TO DO: data type checks
   
