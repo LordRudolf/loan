@@ -1,3 +1,7 @@
+#' Dynamic portfolio statistics
+#'
+#' Experimental: being redesigned.
+#' @keywords internal
 dynamic_stats <- function(x, ...) {
   UseMethod('dynamic_stats')
 }

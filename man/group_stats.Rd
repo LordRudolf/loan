@@ -35,16 +35,12 @@ default 10) or `unique_val` (maximum groups of a nominal variable).}
 
 \item{outcome}{A **binary** outcome, given as for [contingency_table()].}
 
-\item{application_status}{Optional application status: a column name, a
-vector, or a [value_map()] naming its column (on a `loan_tbl`: the
-declared status). With it, the table adds raw `count_<status>` columns,
-`applications_total`, and canonical `count_approved` / `count_rejected` /
-`count_cancelled` with `decisioned_total` (approved + rejected).}
+\item{application_status}{Optional application status, given as for
+[contingency_table()]. A [value_map()] is required for approval rates.}
 
 \item{status_map}{Vector form only: the [value_map()] for
-`application_status`. (The data-frame form takes it from
-`application_status` itself.) Without one, the approved status is
-inferred, with a warning.}
+`application_status`. Without one, statuses remain raw and no approval
+rate is computed.}
 
 \item{variable}{Used when `x` is a data frame: the variable to analyse,
 given either as a **single column name** or as a vector of values with one
@@ -58,7 +54,8 @@ The variable must be numeric (binned automatically), character or factor.}
 \item{table_cols_shown}{Column groups to keep in the result: `"applications"`
 (status totals and approval rate), `"outcomes"` (outcome total and bad
 rate), `"application_statuses"` (the raw `count_<status>` columns),
-`"outcome_statuses"` (`count_good` / `count_bad`).}
+`"outcome_statuses"` (`count_good` / `count_bad`). With unmapped status,
+`"applications"` also keeps the raw counts.}
 
 \item{template_matrix}{Not implemented yet.}
 
@@ -74,6 +71,10 @@ approval rate -- `approved / (approved + rejected)`; cancelled applications
 never received a risk decision and are excluded -- the bad rate of the
 binary outcome, and optional statistics. Accepts the same three input forms
 as [contingency_table()]: vectors, a data frame, or a [loan_tbl()].
+Approval rates and canonical status counts require an explicit [value_map()].
+Without a map, only raw status counts and totals are available, with a message
+requesting a map. Without status, only outcome statistics are returned;
+missing outcomes are never interpreted as rejected applications.
 }
 \examples{
 data(fintech)

@@ -21,8 +21,9 @@ is_loan_tbl(x)
   * `application_status`: a column name or a [value_map()].
   * `predictors`: the features to analyse -- numeric, logical or nominal
     (character / factor) columns. Any other type is kept, with a warning.
-  * `supplementary`: columns kept with the data but never analysed -- other
-    ids, other timestamps, bookkeeping fields.
+  * `supplementary`: columns kept with the data but excluded from automatic
+    predictor selection -- other ids, other timestamps, bookkeeping fields.
+    They can still be analysed when named explicitly.
 
   A column may hold only one role (an outcome may not also be a predictor).}
 
@@ -39,17 +40,23 @@ is_loan_tbl(x)
 
   `loan_tbl()` reports what it assigned. Review it: a post-outcome column
   you did not declare (repayment amount, current days past due, ...) is not
-  a near-copy of anything, so `"auto"` would still make it a predictor.}
+  a near-copy of anything, so `"auto"` would still make it a predictor.
+  [predictor_provenance()] distinguishes declared predictors from those
+  assigned by `unlisted_role`.}
 
 \item{x}{An object.}
 }
 \value{
 A `loan_tbl`: the data as a tibble, with the roles stored as its
-  `loan_roles` attribute. dplyr verbs keep the roles.
+  `loan_roles` attribute. `dplyr::rename()`, `dplyr::select()` and `[` keep
+  roles aligned with the columns. Removing a role's column drops that role;
+  removing the primary outcome leaves it unset, even if another remains.
 }
 \description{
-Each row must be one **closed** application; `application_id` is the only
-column that may not duplicate. Rejected and cancelled applications belong in
+Each row must be one **closed** application. A declared `application_id`
+must have no missing or duplicated values; `loan_id` and `client_id` may
+repeat. Errors report offending rows (all occurrences of repeated ids) and
+example values. Rejected and cancelled applications belong in
 the data -- they carry no outcome but are needed for approval rates and
 reject inference.
 }

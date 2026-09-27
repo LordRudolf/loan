@@ -1,4 +1,8 @@
 
+#' Evaluate features
+#'
+#' Experimental: being redesigned.
+#' @keywords internal
 evaluate_features <- function(data, 
                               new_features, 
                               cv_folds = NA,
@@ -124,6 +128,10 @@ evaluate_features <- function(data,
 }
 
 
+#' Plot paired U test
+#'
+#' Experimental: being redesigned.
+#' @keywords internal
 plot_paired_u_test <- function(output) {
   model_stats <- output$model_stats
   model_stats$variable_set <- rownames(model_stats)
@@ -159,6 +167,10 @@ plot_paired_u_test <- function(output) {
     ggplot2::theme_minimal()
 }
 
+#' Plot variable importance
+#'
+#' Experimental: being redesigned.
+#' @keywords internal
 plot_variable_importance <- function(output) {
   variable_importances <- output$variable_importances
   variable_importances$spec_vars <- is.na(variable_importances$vanilla)
@@ -181,6 +193,10 @@ plot_variable_importance <- function(output) {
     ggplot2::theme_minimal()
 }
 
+#' Plot profit curve
+#'
+#' Experimental: being redesigned.
+#' @keywords internal
 plot_profit_curve <- function(output, worth_good = 100, worth_bad = -100, variable_set = NA) {
   cv_preds <- output$cv_preds
   

@@ -5,15 +5,25 @@
 #' never received a risk decision and are excluded -- the bad rate of the
 #' binary outcome, and optional statistics. Accepts the same three input forms
 #' as [contingency_table()]: vectors, a data frame, or a [loan_tbl()].
+#' Approval rates and canonical status counts require an explicit [value_map()].
+#' Without a map, only raw status counts and totals are available, with a message
+#' requesting a map. Without status, only outcome statistics are returned;
+#' missing outcomes are never interpreted as rejected applications.
 #'
 #' @inheritParams contingency_table
 #' @param outcome A **binary** outcome, given as for [contingency_table()].
+#' @param application_status Optional application status, given as for
+#'   [contingency_table()]. A [value_map()] is required for approval rates.
+#' @param status_map Vector form only: the [value_map()] for
+#'   `application_status`. Without one, statuses remain raw and no approval
+#'   rate is computed.
 #' @param stats Statistics to add per group: any of `"woe"` ([add_woe()]) and
 #'   `"fisher_p_val"` ([add_fisher_p()]).
 #' @param table_cols_shown Column groups to keep in the result: `"applications"`
 #'   (status totals and approval rate), `"outcomes"` (outcome total and bad
 #'   rate), `"application_statuses"` (the raw `count_<status>` columns),
-#'   `"outcome_statuses"` (`count_good` / `count_bad`).
+#'   `"outcome_statuses"` (`count_good` / `count_bad`). With unmapped status,
+#'   `"applications"` also keeps the raw counts.
 #' @param template_matrix Not implemented yet.
 #' @param score Not used yet.
 #' @param ... Passed to the binning, e.g. `breaks` (number of quantile bins,
@@ -74,15 +84,9 @@ group_stats.data.frame <- function(x, variable,
   ## label used in the output attributes
   var_label <- if(is.character(variable) && length(variable) == 1L) variable else 'variable'
 
-  if(is.null(r$application_status)) {
-    ## No status column: applications with no outcome could not have been approved.
-    ## Synthesised values are already canonical, so the map is the identity one and
-    ## no inference warning is needed.
-    if(anyNA(outcome)) warning('The outcome has missing values and no `application_status` was given: treating those applications as rejected.')
-    application_status <- ifelse(is.na(outcome), 'rejected', 'approved')
-    status_map <- value_map(approved = 'approved', rejected = 'rejected')
-  } else {
-    application_status <- r$application_status
+  application_status <- r$application_status
+  if(!is.null(application_status) && is.null(status_map)) {
+    message('Supply `application_status` with a `value_map()` for an approval rate.')
   }
 
   ## creating initial contingency tables ----------------------------------
@@ -90,8 +94,8 @@ group_stats.data.frame <- function(x, variable,
 
     ##TO DO: check that the variable names are not named after the markers
     the_var <- bin_variable(variable_values, ...)
-    cont_table <- contingency_table(the_var, outcome, application_status,
-                                    status_map = status_map)
+    cont_table <- .contingency_table(the_var, outcome, application_status,
+                                     status_map = status_map, infer_status = FALSE)
 
   } else {
     
@@ -139,7 +143,8 @@ group_stats.data.frame <- function(x, variable,
   
   #######################
   ## additional table visualizations
-  if(!any(table_cols_shown == 'application_statuses' )) {
+  if(!any(table_cols_shown == 'application_statuses') &&
+     !(is.null(status_map) && 'applications' %in% table_cols_shown)) {
     apps_status_vals <- paste0('count_', as.character(unique(application_status)))
     
     cont_table <- cont_table[, !colnames(cont_table) %in% apps_status_vals]
@@ -201,13 +206,11 @@ plot.loan_group_stats <- function(x, plots_to_make = 'all', ...) {
       plots_to_make <- c(plots_to_make, 'bad_rate')
     }
     
-    for(i in 1:length(cont_info$stats)) {
-      plots_to_make <- c(plots_to_make, cont_info$stats[[i]])
-    }
+    plots_to_make <- c(plots_to_make, cont_info$stats)
   }
-  plots_to_make <- unique(plots_to_make)
+  plots_to_make <- intersect(plots_to_make, colnames(x))
   
-  if(length(plots_to_make) < 1) stop('No available plots for the selected stats') 
+  if(length(plots_to_make) < 1) stop('No available plots for the selected stats', call. = FALSE)
   
   long_data <- tidyr::pivot_longer(x, cols = intersect(plots_to_make, colnames(x)), names_to = 'variable')
   

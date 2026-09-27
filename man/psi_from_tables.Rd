@@ -8,13 +8,15 @@ psi_from_tables(
   cont_table_prev,
   cont_table,
   measure = "issued_loans_total",
-  var_name = "variable"
+  var_name = "variable",
+  zero_counts = c("add_half", "floor"),
+  floor_value = 1e-04
 )
 }
 \arguments{
-\item{cont_table_prev, cont_table}{The base and comparison `loan_cont_table`s,
-with the same groups -- build the second with
-`template_matrix = cont_table_prev`.}
+\item{cont_table_prev, cont_table}{The base and comparison `loan_cont_table`s.
+Groups present in either table are aligned; absent groups have zero counts,
+and groups empty in both are dropped.}
 
 \item{measure}{The count compared between the samples:
 `"issued_loans_total"` (default: applications with a known outcome),
@@ -24,6 +26,13 @@ any other count column of the [contingency_table()], e.g.
 
 \item{var_name}{Label stored in the result; the data-frame form sets it to
 the column name.}
+
+\item{zero_counts}{How to handle zero groups: `"add_half"` adds 0.5 to every
+group's count in both samples before computing proportions (default);
+`"floor"` floors each unadjusted proportion at `floor_value`.}
+
+\item{floor_value}{Positive proportion floor for `zero_counts = "floor"`
+(default `1e-4`).}
 }
 \value{
 A `loan_psi`.

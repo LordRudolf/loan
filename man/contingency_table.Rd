@@ -60,15 +60,17 @@ inference, with a warning when the bad class has to be guessed.}
 vector, or a [value_map()] naming its column (on a `loan_tbl`: the
 declared status). With it, the table adds raw `count_<status>` columns,
 `applications_total`, and canonical `count_approved` / `count_rejected` /
-`count_cancelled` with `decisioned_total` (approved + rejected).}
+`count_cancelled` with `decisioned_total` (approved + rejected).
+A raw status that spells a canonical label must map to that same label;
+mapping it to a different label is an error because the count names conflict.}
 
 \item{status_map}{Vector form only: the [value_map()] for
 `application_status`. (The data-frame form takes it from
 `application_status` itself.) Without one, the approved status is
 inferred, with a warning.}
 
-\item{template_matrix}{A `loan_cont_table` whose groups are reused, so that a
-second table -- e.g. a later time period -- is binned identically.}
+\item{template_matrix}{A `loan_cont_table` whose numeric bins or nominal
+groups are reused. New nominal groups in the comparison are added.}
 
 \item{classes_limit}{Maximum number of groups; the least frequent merge into
 `infrequent_group_name`.}
@@ -90,14 +92,20 @@ status and by outcome. It is the building block of the feature analysis:
 [group_stats()], [psi()] and the measures ([add_woe()], [add_fisher_p()])
 all work on its result. A numeric variable is binned first; missing values
 form their own group.
+Missing nominal values form `value_NA`, including when infrequent values
+are merged. A genuine value spelled `value_NA` is renamed with a unique
+suffix (`value_NA_1`), with a message, when the variable also has missing
+values -- only then would the two be confused; the original column is
+unchanged.
 }
 \details{
-Every analysis function accepts three input forms, chosen by the first
+This single-variable function accepts three input forms, chosen by the first
 argument:
-* **vectors** -- `contingency_table(values, outcome_values)`;
-* **a data frame** -- `contingency_table(df, "client_age", outcome = ...)`;
 * **a [loan_tbl()]** -- `contingency_table(lt, "client_age")`: the outcome,
-  the application status and its value map come from the declared roles.
+  the application status and its value map come from the declared roles;
+* **a data frame** -- `contingency_table(df, "client_age", outcome = ...)`;
+* **vectors** -- `contingency_table(values, outcome_values)`.
+The same values and options use the same calculation in each form.
 }
 \examples{
 data(fintech)

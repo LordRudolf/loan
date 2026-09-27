@@ -17,7 +17,7 @@ knitr::opts_chunk$set(
 
 The **loan** package analyses a lender's application funnel and loan book
 together. This vignette introduces the core: how a dataset is declared, and how
-every analysis function can be called.
+the single-variable analysis functions can be called.
 
 ```{r setup}
 library(loan)
@@ -64,7 +64,7 @@ lt <- loan_tbl(
     cash_in         = "cash_in"
   ),
   primary_outcome        = "fpd15",
-  ## post-decision information: kept with the data, never analysed
+  ## post-decision information: excluded from automatic predictor selection
   supplementary          = c("app_close_reason", "cash_out", "principal_disbursed")
 )
 lt
@@ -79,7 +79,7 @@ The roles are:
 | `application_status` | a column, or a `value_map()` onto `approved` / `rejected` / `cancelled` |
 | `outcomes`, `primary_outcome` | one or several outcomes, and the default one |
 | `predictors` | the features to analyse |
-| `supplementary` | columns kept but never analysed |
+| `supplementary` | columns excluded from automatic predictor selection; still available when named explicitly |
 
 Every column holds exactly one role; a column that is both an outcome and a
 predictor is an error, because it would leak the outcome.
@@ -98,27 +98,33 @@ supplementary instead. `loan_tbl()` reports what it assigned: review it, since
 post-outcome columns that are not copies of anything would still become
 predictors.
 
-## Three ways to call an analysis function
+`predictor_provenance(lt)` returns one `"declared"` or `"auto"` label per
+predictor. The labels follow column renames and selections, so you can review
+which features were added by `unlisted_role` after preparing the table.
 
-Every analysis function accepts three input forms, chosen by its first argument.
-They give the same result:
+## Three ways to call a single-variable analysis function
+
+Start with a `loan_tbl`: its roles fill in the arguments. A plain data frame
+with column names is the next option; vectors are an escape hatch when the
+inputs have a natural vector form. For the same values and options, these forms
+use the same calculation:
 
 ```{r}
 fpd15_labels <- ifelse(fintech$fpd15 == 1, "bad", "good")
 status <- value_map("application_status", approved = "LOAN_ISSUED",
                     rejected = "REJECTED", cancelled = "CANCELLED")
 
-# 1. bare vectors
-g1 <- group_stats(fintech$client_age, fpd15_labels,
-                  application_status = fintech$application_status, status_map = status)
+# 1. a loan_tbl
+g1 <- group_stats(lt, "client_age")
 
 # 2. a data frame and column names
 g2 <- group_stats(fintech, "client_age",
                   outcome = binary_outcome("fpd15", bad = 1),
                   application_status = status)
 
-# 3. a loan_tbl: the roles fill in the rest
-g3 <- group_stats(lt, "client_age")
+# 3. bare vectors
+g3 <- group_stats(fintech$client_age, fpd15_labels,
+                  application_status = fintech$application_status, status_map = status)
 
 identical(g1$approval_rate, g2$approval_rate) && identical(g2$approval_rate, g3$approval_rate)
 identical(g1$bad_rate, g2$bad_rate) && identical(g2$bad_rate, g3$bad_rate)
@@ -146,7 +152,10 @@ A function that needs a binary outcome says so when given another type:
 group_stats(lt, "client_age", outcome = "dpd")
 ```
 
-The roles survive dplyr verbs, so a `loan_tbl` can be filtered and piped:
+The roles survive dplyr verbs, so a `loan_tbl` can be filtered and piped.
+Renaming or selecting columns updates their roles; removing an outcome removes
+its declaration. If the primary outcome is removed, name another with
+`outcome =` when analysing the result.
 
 ```{r}
 lt |>
@@ -163,9 +172,12 @@ and by outcome. It is the building block of the other functions.
 contingency_table(lt, "gender")
 ```
 
-`group_stats()` adds the approval rate -- cancelled applications never received
-a risk decision, so they are excluded -- the bad rate, and optional statistics:
-weight of evidence and a per-group Fisher exact test.
+`group_stats()` adds the approval rate when the application status has a
+`value_map()`, as declared above: approved / (approved + rejected), excluding
+cancelled applications, which never received a risk decision. It also adds the bad rate and optional statistics:
+weight of evidence and a per-group Fisher exact test. Without a status map,
+it shows raw status counts and requests a map; without status, it returns only
+outcome statistics. Missing outcomes never imply rejection.
 
 ```{r, fig.width = 7, fig.height = 6}
 gs <- group_stats(lt, "client_age", stats = c("woe", "fisher_p_val"))
@@ -182,7 +194,11 @@ group_stats(lt, "gender")[, c("the_var", "applications_total", "approval_rate", 
 
 `psi()` measures how much a variable's distribution moved between two samples,
 typically two time periods. The comparison sample reuses the base sample's
-groups, so both are binned identically.
+groups, so both are binned identically; new comparison categories are included.
+The reported value sums nonnegative contributions from each group's proportions.
+By default, 0.5 is added to every group's count in both samples before
+proportions are calculated. Use `zero_counts = "floor"` to floor proportions at
+`floor_value` (default `1e-4`) instead.
 
 ```{r}
 base <- as.Date(lt$app_created_at) <  as.Date("2024-04-01")

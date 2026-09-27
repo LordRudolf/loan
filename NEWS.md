@@ -8,7 +8,8 @@ one way for every analysis function to take its arguments.
 * `loan_tbl()` declares which column plays which role: `application_id`,
   `loan_id`, `client_id`, `application_created_at`, `first_delay_at`,
   `application_status`, `outcomes` + `primary_outcome`, `predictors` and
-  `supplementary` (kept but never analysed). Every column holds exactly one
+  `supplementary` (excluded from automatic predictor selection, but available
+  when named explicitly). Every column holds exactly one
   role; an outcome declared as a predictor is an error. Roles survive dplyr
   verbs.
 * Unlisted columns get a role from `unlisted_role`: `"predictors"`,
@@ -17,6 +18,9 @@ one way for every analysis function to take its arguments.
   Tschuprow's T for nominal columns) of a listed id, timestamp, outcome or
   predictor becomes supplementary. Declared predictors of an unanalysable type
   are kept with a warning.
+* `predictor_provenance()` identifies predictors listed by the analyst versus
+  those assigned by `unlisted_role`. The split appears in `print(loan_tbl)` and
+  follows column renames and removals.
 * `value_map()` maps an institution's raw status values onto the canonical
   `approved` / `rejected` / `cancelled`. `cancelled` (closed outside
   risk-policy control) is excluded from approval-rate denominators.
@@ -27,10 +31,11 @@ one way for every analysis function to take its arguments.
 
 ## Analysis functions
 
-* Every analysis function accepts three input forms: bare vectors, a data
-  frame with column names (or vectors -- a single string is a column name), or
-  a `loan_tbl` whose roles fill in the arguments. All forms give identical
-  results and fail with identical messages.
+* Single-variable functions accept a `loan_tbl` whose roles fill in the
+  arguments, a plain data frame with column names (or aligned values), and
+  vectors when there is a natural vector form. All forms use the same
+  calculation for the same values and options. Functions operating on an
+  existing `loan_*` result accept that result.
 * `contingency_table()` adds canonical `count_approved` / `count_rejected` /
   `count_cancelled` and `decisioned_total` next to the raw status counts, and
   counts a binary outcome as `count_good` / `count_bad`.
@@ -58,6 +63,39 @@ data argument of data-only functions is `data` (not `df`).
 
 ## Bug fixes
 
+* Public exports are now explicit; internal helpers are no longer exported.
+  Recipes methods for `step_woebin()` are registered for dispatch, and the
+  empty `plot_density()` stub was removed.
+* `plot_univariate_smooth(grouping_var = ...)` now accepts column names,
+  aligned character, factor or logical vectors, and expressions evaluated in
+  the data with the caller's environment as fallback. Invalid names and lengths
+  use the shared argument errors; missing groups use `value_NA`.
+* `dplyr::rename()`, `dplyr::select()` and `[` now update `loan_tbl` roles when
+  columns are renamed or removed, including columns inside status and outcome
+  declarations. Removing the primary outcome leaves it unset; analyses need an
+  explicit `outcome =` if another outcome remains.
+* `psi()` and `psi_from_tables()` align groups from both samples, count absent
+  groups as zero, and calculate nonnegative per-group contributions from
+  proportions. Zero counts now use an explicit rule: add 0.5 to every count by
+  default, or floor proportions at `floor_value`. Nominal `template_matrix`
+  groups are reused and new comparison categories are retained. Previously a
+  category present only in the comparison sample made the reported PSI
+  exactly 0, and per-group contributions could be negative. Expect PSI values
+  to change: missing values now count as a group (WP3), so e.g. on `fintech`
+  `education_level`, mostly missing from mid-2025, moves from 0.11 to 5.7.
+* Nominal missing values now remain a `value_NA` group in contingency tables,
+  including when infrequent values are merged. Shared grouping with
+  `group_stats()` renames a genuine `value_NA` / `value_other` value with a
+  unique suffix and a message when it would collide with the group the package
+  creates (missing values present / infrequent values merged), without
+  changing the input column.
+* `loan_tbl()` rejects missing or duplicated declared application ids, reporting
+  offending row counts and example values; loan and client ids may still repeat.
+* `group_stats()` computes approval rates and canonical status counts only with
+  an explicit status `value_map()`. Unmapped statuses retain raw counts and a
+  message requesting a map. Without status it returns outcome statistics only,
+  never inferring rejection from missing outcomes. Its plot method handles
+  absent rates and `stats = character()`.
 * S3 methods are registered: the data-frame forms failed to dispatch.
 * dplyr and ggplot2 functions are imported or qualified: functions failed
   unless the user had attached those packages.
@@ -70,6 +108,15 @@ data argument of data-only functions is `data` (not `df`).
   honours `plots_to_make`; `plot_univariate_smooth(x_log_scale = TRUE)` works.
 * A mistyped column name gives a clear error in every function instead of a
   silent `NULL`.
+* A `value_map()`'s `.default` must be a label of the role's vocabulary, like
+  the mapped labels (`.default = "maybe"` was accepted for a status).
+* `contingency_table()` rejects a raw status that spells a canonical label but
+  is mapped to a different one (raw `"approved"` mapped to `rejected`), which
+  made `count_approved` ambiguous. Mapping it to the label it spells is fine.
+* A `template_matrix` re-bins a numeric variable into the template's own
+  left-closed intervals `[a, b)`; values lying on a cut point used to move to
+  the neighbouring bin. This inflated `psi()` for every numeric variable (a
+  sample compared with itself gave 0.024 instead of 0).
 
 ## Removed
 

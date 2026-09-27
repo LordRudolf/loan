@@ -1,4 +1,8 @@
 
+#' Cross-validation folds
+#'
+#' Experimental: being redesigned.
+#' @keywords internal
 cv_folds <- function(target, X, resample_splits = NULL, resample_method = 'auto', application_created_at = NULL, 
                             rounded_vintages = TRUE, ...) {
   

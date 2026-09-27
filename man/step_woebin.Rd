@@ -72,13 +72,16 @@ WOE-transformed values; if `FALSE`, new columns are created alongside the origin
 An updated recipe object with the new WOE binning step added.
 }
 \description{
+Experimental: being redesigned.
+}
+\details{
 `step_woebin` creates a specification of a recipe step that converts numeric
 predictors into weight-of-evidence (WOE) values using functions provided by the
 **scorecard** package (i.e. `scorecard::woebin` and `scorecard::woebin_ply`).
 The step can either replace the original numeric columns with their WOE-transformed
 values or add new columns (named by appending `_woe` to the original names) to the dataset.
-}
-\details{
+
+
 This step uses functions from the **scorecard** package (namely, `scorecard::woebin` and
 `scorecard::woebin_ply`) to compute WOE bins for the selected predictors based on a target variable.
 When `replace = TRUE`, the numeric columns selected are overwritten with their WOE-transformed
@@ -134,3 +137,4 @@ baked_newcols <- bake(rec_woebin_newcols, new_data = test_data)
 \seealso{
 [recipes::step()], [scorecard::woebin()], [scorecard::woebin_ply()]
 }
+\keyword{internal}

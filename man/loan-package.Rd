@@ -14,8 +14,9 @@ rates, outcomes and reject inference can be studied together.
 
 * [loan_tbl()] declares which column plays which role: ids, timestamps, the
   application status, one or several outcomes (one of them primary),
-  predictors, and supplementary columns kept but never analysed. Unlisted
-  columns are assigned automatically.
+  predictors, and supplementary columns excluded from automatic predictor
+  selection but available when named explicitly. Unlisted columns are
+  assigned automatically; [predictor_provenance()] identifies their origin.
 * [value_map()] maps an institution's raw status values onto the canonical
   `approved` / `rejected` / `cancelled`; [binary_outcome()] says which raw
   outcome values are `bad`.
@@ -24,9 +25,10 @@ rates, outcomes and reject inference can be studied together.
 \section{Analysis functions}{
 
 [contingency_table()], [group_stats()], [psi()] and
-[plot_univariate_smooth()] each accept three input forms: bare vectors, a
-data frame with column names, or a `loan_tbl` whose roles fill in the
-arguments. Measures on contingency tables: [add_woe()], [add_fisher_p()].
+[plot_univariate_smooth()] each accept a `loan_tbl` whose roles fill in the
+arguments, a data frame with column names, or vectors when the inputs have
+a natural vector form. The same values and options use the same calculation.
+Measures on contingency tables: [add_woe()], [add_fisher_p()].
 }
 
 \section{Status}{

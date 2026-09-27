@@ -18,7 +18,8 @@ raw values that belong to it, e.g. `approved = c("LOAN_ISSUED", "DISBURSED")`.}
 
 \item{.default}{Label for raw values not listed in `...`. When `NULL` (the
 default) an unlisted value is an error rather than being silently
-misclassified.}
+misclassified. When used for a role with a controlled vocabulary, this
+label must belong to that vocabulary, just like the labels in `...`.}
 
 \item{x}{An object.}
 }

@@ -9,7 +9,8 @@ on the same data.
 
 ## The idea in one example
 
-Declare the roles of your columns once:
+Declare the roles of your columns once. The core single-variable functions can
+then fill in their own arguments:
 
 ```r
 library(loan)
@@ -39,7 +40,12 @@ lt <- loan_tbl(
 # every other column is assigned automatically; loan_tbl() reports how
 ```
 
-and every analysis function fills in its own arguments:
+`supplementary` columns stay available for analysis when named explicitly;
+they are excluded from automatic predictor selection. Check
+`predictor_provenance(lt)` to see which predictors were declared and which were
+assigned automatically.
+
+For example:
 
 ```r
 group_stats(lt, "client_age")                         # approval rate, bad rate per age group
@@ -49,8 +55,8 @@ psi(lt, "education_level", time_split_base = ..., time_split_comparison = ...)
 plot_univariate_smooth(lt, "client_age")
 ```
 
-The same functions also take bare vectors, or a plain data frame with column
-names. See `vignette("getting_started", package = "loan")`.
+The same functions also take a plain data frame with column names, or bare
+vectors. See `vignette("getting_started", package = "loan")`.
 
 ## Status
 

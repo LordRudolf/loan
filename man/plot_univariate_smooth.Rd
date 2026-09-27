@@ -13,6 +13,7 @@ plot_univariate_smooth(x, ...)
   outcome = NULL,
   application_status = NULL,
   status_map = NULL,
+  grouping_var = NULL,
   ...
 )
 
@@ -48,11 +49,13 @@ cancelled applications can be excluded.}
 `application_status` itself.) Without one, the approved status is
 inferred, with a warning.}
 
+\item{grouping_var}{Optional: one curve per group. A column name, an aligned
+character, factor or logical vector, or an expression evaluated in the data
+with the caller's environment as fallback (e.g. `gender == "MALE"`).
+Missing values form the `value_NA` group.}
+
 \item{variable}{Used when `x` is a data frame: the **numeric** variable to
 plot, as a single column name or a vector of values with one element per row.}
-
-\item{grouping_var}{Optional: one curve per group. A column name, a vector,
-or an expression evaluated in the data (e.g. `gender == "MALE"`).}
 
 \item{type}{`"bad_rate"` or `"approval_rate"`.}
 

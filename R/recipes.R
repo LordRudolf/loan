@@ -1,5 +1,7 @@
 #' Weight-of-Evidence (WOE) Binning Recipe Step Using scorecard Package
 #'
+#' Experimental: being redesigned.
+#'
 #' `step_woebin` creates a specification of a recipe step that converts numeric
 #' predictors into weight-of-evidence (WOE) values using functions provided by the
 #' **scorecard** package (i.e. `scorecard::woebin` and `scorecard::woebin_ply`).
@@ -82,6 +84,7 @@
 #' }
 #'
 #' @seealso [recipes::step()], [scorecard::woebin()], [scorecard::woebin_ply()]
+#' @keywords internal
 #'
 #' @export
 step_woebin <- function(recipe, ..., 

@@ -26,7 +26,8 @@ loan_vocabulary <- function(role) {
 #'   raw values that belong to it, e.g. `approved = c("LOAN_ISSUED", "DISBURSED")`.
 #' @param .default Label for raw values not listed in `...`. When `NULL` (the
 #'   default) an unlisted value is an error rather than being silently
-#'   misclassified.
+#'   misclassified. When used for a role with a controlled vocabulary, this
+#'   label must belong to that vocabulary, just like the labels in `...`.
 #' @return A `loan_value_map` object.
 #' @export
 #' @examples
@@ -95,7 +96,7 @@ check_vocabulary <- function(vm, role) {
   allowed <- loan_vocabulary(role)
   if(is.null(allowed)) return(invisible(TRUE))
 
-  unknown <- setdiff(names(vm$map), c(allowed, vm$default))
+  unknown <- setdiff(c(names(vm$map), vm$default), allowed)
   if(length(unknown)) {
     stop('Unknown ', role, ' label(s): ', paste(unknown, collapse = ', '),
          '. Allowed: ', paste(allowed, collapse = ', '), '.', call. = FALSE)

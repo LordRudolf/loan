@@ -13,8 +13,10 @@ loan_role_names <- function() {
 
 #' Declare the roles of a loan portfolio dataset
 #'
-#' Each row must be one **closed** application; `application_id` is the only
-#' column that may not duplicate. Rejected and cancelled applications belong in
+#' Each row must be one **closed** application. A declared `application_id`
+#' must have no missing or duplicated values; `loan_id` and `client_id` may
+#' repeat. Errors report offending rows (all occurrences of repeated ids) and
+#' example values. Rejected and cancelled applications belong in
 #' the data -- they carry no outcome but are needed for approval rates and
 #' reject inference.
 #'
@@ -28,8 +30,9 @@ loan_role_names <- function() {
 #'   * `application_status`: a column name or a [value_map()].
 #'   * `predictors`: the features to analyse -- numeric, logical or nominal
 #'     (character / factor) columns. Any other type is kept, with a warning.
-#'   * `supplementary`: columns kept with the data but never analysed -- other
-#'     ids, other timestamps, bookkeeping fields.
+#'   * `supplementary`: columns kept with the data but excluded from automatic
+#'     predictor selection -- other ids, other timestamps, bookkeeping fields.
+#'     They can still be analysed when named explicitly.
 #'
 #'   A column may hold only one role (an outcome may not also be a predictor).
 #' @param unlisted_role The role given to every column not listed in `...`:
@@ -46,6 +49,8 @@ loan_role_names <- function() {
 #'   `loan_tbl()` reports what it assigned. Review it: a post-outcome column
 #'   you did not declare (repayment amount, current days past due, ...) is not
 #'   a near-copy of anything, so `"auto"` would still make it a predictor.
+#'   [predictor_provenance()] distinguishes declared predictors from those
+#'   assigned by `unlisted_role`.
 #' @details The `"auto"` screen measures each candidate predictor against every
 #'   column listed as an id, timestamp, outcome or predictor (a binary outcome
 #'   counts as bad = 1): the absolute Pearson correlation when both columns are
@@ -57,7 +62,9 @@ loan_role_names <- function() {
 #'   duplicated keys, timestamps stored as numbers, re-coded copies of an
 #'   outcome or a predictor -- not subtler leakage.
 #' @return A `loan_tbl`: the data as a tibble, with the roles stored as its
-#'   `loan_roles` attribute. dplyr verbs keep the roles.
+#'   `loan_roles` attribute. `dplyr::rename()`, `dplyr::select()` and `[` keep
+#'   roles aligned with the columns. Removing a role's column drops that role;
+#'   removing the primary outcome leaves it unset, even if another remains.
 #' @examples
 #' data(fintech)
 #' lt <- loan_tbl(
@@ -144,6 +151,20 @@ loan_tbl <- function(data, ..., unlisted_role = 'auto') {
     check_declared_columns(spec, role)
   }
 
+  for(column in roles$application_id) {
+    id <- data[[column]]
+    missing <- is.na(id)
+    repeated <- !missing & (duplicated(id) | duplicated(id, fromLast = TRUE))
+    offending <- missing | repeated
+    if(any(offending)) {
+      stop('`application_id` must have no missing or duplicated values; column "',
+           column, '" has ', sum(offending), ' offending rows (', sum(missing),
+           ' missing, ', sum(repeated), ' with duplicated values). Examples: ',
+           paste(utils::head(unique(id[offending]), 5L), collapse = ', '), '.',
+           call. = FALSE)
+    }
+  }
+
   if(is_value_map(roles$application_status)) {
     apply_value_map(data[[roles$application_status$column]],
                     roles$application_status, role = 'application_status')
@@ -164,7 +185,11 @@ loan_tbl <- function(data, ..., unlisted_role = 'auto') {
          paste(both, collapse = ', '), '.', call. = FALSE)
   }
 
+  declared_predictors <- roles$predictors
   roles <- assign_unlisted(data, roles, unlisted_role)
+  predictors <- unique(roles$predictors)
+  attr(roles, 'predictor_provenance') <- stats::setNames(
+    ifelse(predictors %in% declared_predictors, 'declared', 'auto'), predictors)
 
   ## a predictor of a type no analysis function accepts is allowed, but flagged
   odd <- Filter(function(cl) !is_variable_type(data[[cl]]), roles$predictors)
@@ -324,6 +349,25 @@ normalize_outcomes <- function(outcomes) {
 #' @export
 is_loan_tbl <- function(x) inherits(x, 'loan_tbl')
 
+#' Predictor provenance in a `loan_tbl`
+#'
+#' Shows whether each predictor was listed in `predictors =` (`"declared"`) or
+#' assigned by `unlisted_role = "auto"` or `"predictors"` (`"auto"`). The names
+#' follow column renames and removals. This is metadata, not another column role.
+#'
+#' @param x A `loan_tbl`.
+#' @return A named character vector with one entry per predictor, or
+#'   `character()` when there are no predictors.
+#' @export
+predictor_provenance <- function(x) {
+  if(!is_loan_tbl(x)) {
+    got <- if(length(class(x))) class(x)[[1]] else typeof(x)
+    stop('`x` must be a `loan_tbl`; got `', got, '`.', call. = FALSE)
+  }
+  provenance <- attr(loan_roles(x), 'predictor_provenance', exact = TRUE)
+  if(length(provenance)) provenance else character()
+}
+
 #' @export
 print.loan_tbl <- function(x, ...) {
   roles <- loan_roles(x)
@@ -351,6 +395,14 @@ print.loan_tbl <- function(x, ...) {
           cat('#     ', nm, ': ', describe(roles$outcomes[[nm]]),
               if(identical(nm, primary)) '  (primary)' else '', '\n', sep = '')
         }
+      } else if(identical(role, 'predictors')) {
+        provenance <- predictor_provenance(x)
+        cat('#   predictors (', length(provenance), ': ',
+            sum(provenance == 'declared'), ' declared, ',
+            sum(provenance == 'auto'), ' auto): ',
+            if(length(provenance) > 6L) {
+              paste0(paste(utils::head(roles$predictors, 5L), collapse = ', '), ', ...')
+            } else paste(roles$predictors, collapse = ', '), '\n', sep = '')
       } else {
         cat('#   ', role, ': ', describe(roles[[role]]), '\n', sep = '')
       }
@@ -369,10 +421,75 @@ print.loan_tbl <- function(x, ...) {
 #' @keywords internal
 loan_roles <- function(x) attr(x, 'loan_roles', exact = TRUE)
 
+## Column changes are positional for renames and name-based for removals.
+## Keep declaration names (outcome keys) stable; only their columns move.
+update_loan_roles <- function(roles, old, new) {
+  replacement <- stats::setNames(new, old)
+  provenance <- attr(roles, 'predictor_provenance', exact = TRUE)
+  column <- function(spec) {
+    if(is_value_map(spec)) {
+      name <- replacement[[spec$column]]
+      if(is.null(name) || is.na(name)) return(NULL)
+      spec$column <- name
+      return(spec)
+    }
+    kept <- replacement[spec]
+    unname(kept[!is.na(kept)])
+  }
+
+  for(role in setdiff(names(roles), c('outcomes', 'primary_outcome'))) {
+    updated <- column(roles[[role]])
+    if(length(updated)) roles[[role]] <- updated else roles[[role]] <- NULL
+  }
+  if(length(roles$outcomes)) {
+    roles$outcomes <- lapply(roles$outcomes, function(spec) {
+      updated <- column(spec)
+      if(length(updated)) updated else NULL
+    })
+    roles$outcomes <- Filter(Negate(is.null), roles$outcomes)
+  }
+  if(length(roles$primary_outcome) == 1L &&
+     !roles$primary_outcome %in% names(roles$outcomes)) {
+    roles$primary_outcome <- character()
+  }
+  if(length(provenance)) {
+    renamed <- replacement[names(provenance)]
+    keep <- !is.na(renamed)
+    attr(roles, 'predictor_provenance') <- stats::setNames(
+      unname(provenance[keep]), unname(renamed[keep]))
+  }
+  roles
+}
+
+#' @export
+`[.loan_tbl` <- function(x, ...) {
+  out <- NextMethod('[')
+  if(is.data.frame(out)) {
+    old <- names(x)
+    remaining <- old %in% names(out)
+    attr(out, 'loan_roles') <- update_loan_roles(loan_roles(x), old,
+                                                  ifelse(remaining, old, NA_character_))
+  }
+  out
+}
+
+#' @export
+`names<-.loan_tbl` <- function(x, value) {
+  old <- names(x)
+  roles <- loan_roles(x)
+  x <- NextMethod('names<-')
+  attr(x, 'loan_roles') <- update_loan_roles(roles, old, names(x))
+  x
+}
+
 ## Which declared outcome a single-outcome function uses when none is named.
 primary_outcome_name <- function(declared) {
   outs <- names(declared$outcomes)
-  if(!is.null(declared$primary_outcome)) return(declared$primary_outcome)
+  if(length(declared$primary_outcome) == 1L) return(declared$primary_outcome)
+  if(!is.null(declared$primary_outcome)) {
+    stop('No `primary_outcome` remains. Choose one with `outcome = "<name>"`.',
+         call. = FALSE)
+  }
   if(length(outs) == 1L) return(outs)
   stop('Several outcomes are declared (', paste(outs, collapse = ', '), ') but no ',
        '`primary_outcome`. Choose one with `outcome = "<name>"`, or set ',

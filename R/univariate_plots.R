@@ -14,8 +14,10 @@
 #'   `type = "approval_rate"` it must carry a [value_map()], so that
 #'   cancelled applications can be excluded.
 #' @param type `"bad_rate"` or `"approval_rate"`.
-#' @param grouping_var Optional: one curve per group. A column name, a vector,
-#'   or an expression evaluated in the data (e.g. `gender == "MALE"`).
+#' @param grouping_var Optional: one curve per group. A column name, an aligned
+#'   character, factor or logical vector, or an expression evaluated in the data
+#'   with the caller's environment as fallback (e.g. `gender == "MALE"`).
+#'   Missing values form the `value_NA` group.
 #' @param include_missing Annotate the share of missing values and their rate.
 #' @param add_histogram Add a histogram of the variable above the curve.
 #' @param x_log_scale Log-scale the x axis.
@@ -34,11 +36,11 @@ plot_univariate_smooth <- function(x, ...) {
 #' @rdname plot_univariate_smooth
 #' @export
 plot_univariate_smooth.numeric <- function(x, outcome = NULL, application_status = NULL,
-                                           status_map = NULL, ...) {
+                                           status_map = NULL, grouping_var = NULL, ...) {
   check_same_length(x, outcome = outcome, application_status = application_status)
   f <- frame_with_status(x, application_status, status_map)
   plot_univariate_smooth(f$frame, 'variable', outcome = outcome,
-                         application_status = f$status, ...)
+                         application_status = f$status, grouping_var = grouping_var, ...)
 }
 
 #' @rdname plot_univariate_smooth
@@ -85,37 +87,27 @@ plot_univariate_smooth.data.frame <- function(x, variable, grouping_var = NULL, 
   the_var <- check_variable(r$variable, types = 'numeric')
   var_label <- if(is.character(variable) && length(variable) == 1L) variable else 'variable'
     
-  ## Detecting what the grouping variable is
-  ## Allowing both - the expression input, vector input or name
   expr <- substitute(grouping_var)
-  if(!is.null(expr)) {
-    
-    if(is.call(expr)) {
-      the_group_outcomes <- eval(expr, x, parent.frame())
-      grouping_var_name <- deparse(expr)
-    } else {
-      grouping_var <- eval(grouping_var)
-      if(length(grouping_var) == 1) {
-        if(!(as.character(grouping_var) %in% colnames(x))) stop(paste0('There does not exist such variable named ', grouping_var))
-        the_group_outcomes <- x[[grouping_var]]
-        grouping_var_name <- grouping_var
-      } else {
-        the_group_outcomes <- grouping_var
-        grouping_var_name <- 'The group'
-      }
+  grouping_spec <- eval(expr, x, parent.frame())
+  the_group_outcomes <- NULL
+  if(!is.null(grouping_spec)) {
+    the_group_outcomes <- resolve_roles(x, grouping_var = grouping_spec)$grouping_var
+    if(!(is.character(the_group_outcomes) || is.factor(the_group_outcomes) ||
+         is.logical(the_group_outcomes))) {
+      stop('`grouping_var` must be a character, factor or logical vector -- got ',
+           class(the_group_outcomes)[[1]], '.', call. = FALSE)
     }
-    
-    if(!(is.character(the_group_outcomes) | is.factor(the_group_outcomes))) stop('The expression of grouping variable must output a character of factor type vector.')
-    if(length(the_group_outcomes) != length(dependent_var)) stop('The grouping variable length must match with the outcome variable length.')
-    
-    if(anyNA(the_group_outcomes)) {
-      the_group_outcomes <- as.character(the_group_outcomes)
-      the_group_outcomes[is.na(the_group_outcomes)] <- '.MISSING_VALUES'
-      the_group_outcomes <- as.factor(the_group_outcomes)
+    the_group_outcomes <- nominal_groups(the_group_outcomes)
+    grouping_var_name <- if(is.character(grouping_spec) && length(grouping_spec) == 1L) {
+      grouping_spec
+    } else if(is.call(expr)) {
+      paste(deparse(expr), collapse = '')
+    } else {
+      'The group'
     }
   }
   
-  if(is.null(grouping_var)) {
+  if(is.null(the_group_outcomes)) {
     #grouping variable not provided
     ggdata <- tibble::tibble(
       dependent_var = dependent_var, 
@@ -181,7 +173,7 @@ plot_univariate_smooth.data.frame <- function(x, variable, grouping_var = NULL, 
   }
   
   if(add_histogram) {
-    if(is.null(grouping_var)) {
+    if(is.null(the_group_outcomes)) {
       g_hist <- ggplot2::ggplot(data = ggdata, ggplot2::aes(x = variable)) 
     } else {
       g_hist <- ggplot2::ggplot(data = ggdata, ggplot2::aes(x = variable, colour = the_group, group = the_group, fill = the_group)) 
@@ -198,9 +190,4 @@ plot_univariate_smooth.data.frame <- function(x, variable, grouping_var = NULL, 
   
     
   return(g_outcome)
-}
-
-
-plot_density <- function(data, variable, show_unknown = FALSE, ...) {
-  
 }

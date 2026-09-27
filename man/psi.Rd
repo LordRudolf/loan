@@ -19,7 +19,9 @@ psi(x, ...)
   var_name = "variable",
   application_status = NULL,
   ...,
-  requires_verification = TRUE
+  requires_verification = TRUE,
+  zero_counts = c("add_half", "floor"),
+  floor_value = 1e-04
 )
 }
 \arguments{
@@ -46,7 +48,9 @@ inference, with a warning when the bad class has to be guessed.}
 vector, or a [value_map()] naming its column (on a `loan_tbl`: the
 declared status). With it, the table adds raw `count_<status>` columns,
 `applications_total`, and canonical `count_approved` / `count_rejected` /
-`count_cancelled` with `decisioned_total` (approved + rejected).}
+`count_cancelled` with `decisioned_total` (approved + rejected).
+A raw status that spells a canonical label must map to that same label;
+mapping it to a different label is an error because the count names conflict.}
 
 \item{time_split_base, time_split_comparison}{Rows of the base and the
 comparison sample: logical vectors with one element per row, or integer
@@ -62,18 +66,31 @@ any other count column of the [contingency_table()], e.g.
 the column name.}
 
 \item{requires_verification}{Check the inputs first (default `TRUE`).}
+
+\item{zero_counts}{How to handle zero groups: `"add_half"` adds 0.5 to every
+group's count in both samples before computing proportions (default);
+`"floor"` floors each unadjusted proportion at `floor_value`.}
+
+\item{floor_value}{Positive proportion floor for `zero_counts = "floor"`
+(default `1e-4`).}
 }
 \value{
-A `loan_psi`: the PSI value, with the per-group table as its
-  `PSI_table` attribute.
+A `loan_psi`: the sum of nonnegative per-group contributions, with
+  the group table as its `PSI_table` attribute. That table includes aligned
+  `count_base` and `count_comparison` columns (zero for absent groups).
+  The `zero_counts` and `floor_value` attributes record the chosen rule.
 }
 \description{
 Compares a variable's distribution between a base and a comparison sample
 -- typically two time periods: the sum over groups of
 `(p_comparison - p_base) * log(p_comparison / p_base)`. The variable is
 grouped on the base sample and the comparison sample reuses those groups, so
-both are binned identically. Accepts the same three input forms as
-[contingency_table()].
+both are binned identically; new comparison groups are also included.
+Missing groups have zero counts; groups empty in both samples are dropped.
+By default, 0.5 is added to every count
+before proportions are computed. With `zero_counts = "floor"`, raw
+proportions are floored at `floor_value` instead. Accepts the same three
+input forms as [contingency_table()].
 }
 \examples{
 data(fintech)

@@ -1,3 +1,7 @@
+#' Fit a model
+#'
+#' Experimental: being redesigned.
+#' @keywords internal
 fit_model <- function(rec, data, method = 'ranger', ..., ml_framework = 'caret', importance = 'impurity') {
 
   args <- list(...)

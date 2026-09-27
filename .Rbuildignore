@@ -17,3 +17,6 @@
 ^fintech_prep\.R$
 ^README\.md$
 ^\.claude$
+^dev$
+^\.git$
+^\.rtmp$
